@@ -494,5 +494,18 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.Interfaces
                void llLinkPlaySound(LSL_Integer linknumber, string sound, double volume);
                void llLinkSetSoundQueueing(int linknumber, int queue);
                void llLinkSetSoundRadius(int linknumber, double radius);
+
+
+               LSL_Integer llLinksetDataWrite(LSL_String name, LSL_String value);
+               LSL_Integer llLinksetDataWriteProtected(LSL_String name, LSL_String value, LSL_String pass);
+               void llLinksetDataReset();
+               LSL_Integer llLinksetDataAvailable();
+               LSL_Integer llLinksetDataCountKeys();
+               LSL_Integer llLinksetDataDelete(LSL_String name);
+               LSL_Integer llLinksetDataDeleteProtected(LSL_String name, LSL_String pass);
+               LSL_List llLinksetDataFindKeys(LSL_String pattern, LSL_Integer start, LSL_Integer count);
+               LSL_List llLinksetDataListKeys(LSL_Integer start, LSL_Integer count);
+               LSL_String llLinksetDataRead(LSL_String name);
+               LSL_String llLinksetDataReadProtected(LSL_String name, LSL_String pass);
     }
 }

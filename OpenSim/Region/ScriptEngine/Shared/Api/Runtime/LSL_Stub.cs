@@ -32,6 +32,7 @@ using System.Threading;
 using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using OpenSim.Region.ScriptEngine.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
 
@@ -2241,6 +2242,63 @@ namespace OpenSim.Region.ScriptEngine.Shared.ScriptBase
         public void llLinkSetSoundRadius(int linknumber, double radius)
         {
             m_LSL_Functions.llLinkSetSoundRadius(linknumber, radius);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_Integer llLinksetDataWrite(LSL_String name, LSL_String value)
+        {
+            return m_LSL_Functions.llLinksetDataWrite(name, value);
+        }
+       
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_Integer llLinksetDataWriteProtected(LSL_String name, LSL_String value, LSL_String pass)
+        {
+            return m_LSL_Functions.llLinksetDataWriteProtected(name, value, pass);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_Integer llLinksetDataAvailable()
+        {
+            return m_LSL_Functions.llLinksetDataAvailable();
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void llLinksetDataReset()
+        {
+            m_LSL_Functions.llLinksetDataReset();
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_Integer llLinksetDataCountKeys()
+        {
+            return m_LSL_Functions.llLinksetDataCountKeys();
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_Integer llLinksetDataDelete(LSL_String name)
+        {
+            return m_LSL_Functions.llLinksetDataDelete(name);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_Integer llLinksetDataDeleteProtected(LSL_String name, LSL_String pass)
+        {
+            return m_LSL_Functions.llLinksetDataDeleteProtected(name, pass);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_List llLinksetDataFindKeys(LSL_String pattern, LSL_Integer start, LSL_Integer count)
+        {
+            return m_LSL_Functions.llLinksetDataFindKeys(pattern, start,count);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_List llLinksetDataListKeys(LSL_Integer start, LSL_Integer count)
+        {
+            return m_LSL_Functions.llLinksetDataListKeys(start,count);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_String llLinksetDataRead(LSL_String name)
+        {
+            return m_LSL_Functions.llLinksetDataRead(name);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_String llLinksetDataReadProtected(LSL_String name, LSL_String pass)
+        {
+            return m_LSL_Functions.llLinksetDataReadProtected(name, pass);
         }
     }
 }

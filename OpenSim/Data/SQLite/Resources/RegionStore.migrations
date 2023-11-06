@@ -406,3 +406,9 @@ BEGIN;
 ALTER TABLE `prims` ADD COLUMN `sopanims` blob default NULL;
 ALTER TABLE `primshapes` ADD COLUMN `MatOvrd` blob default NULL;
 COMMIT;
+
+
+:VERSION 41         #----- Linkset Data
+BEGIN;
+ALTER TABLE `prims` ADD COLUMN `linksetdata` blob default NULL;
+COMMIT;

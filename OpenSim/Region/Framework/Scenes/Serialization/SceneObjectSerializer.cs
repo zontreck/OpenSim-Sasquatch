@@ -533,6 +533,7 @@ namespace OpenSim.Region.Framework.Scenes.Serialization
             m_SOPXmlProcessors.Add("SOPAnims", ProcessSOPAnims);
 
             m_SOPXmlProcessors.Add("SitActRange", ProcessSitActRange);
+            m_SOPXmlProcessors.Add("LinksetData", ProcessLinksetData);
 
             #endregion
 
@@ -1093,6 +1094,19 @@ namespace OpenSim.Region.Framework.Scenes.Serialization
         private static void ProcessVolumeDetectActive(SceneObjectPart obj, XmlReader reader)
         {
             obj.VolumeDetectActive = Util.ReadBoolean(reader);
+        }
+
+        private static void ProcessLinksetData(SceneObjectPart obj, XmlReader reader)
+        {
+            try
+            {
+                string b64 = reader.ReadElementContentAsString();
+                if (string.IsNullOrEmpty(b64))
+                    return;
+
+                byte[] bArr = Convert.FromBase64String(b64);
+                obj.DeserializeLinksetData(bArr);
+            }catch{}
         }
 
         #endregion
@@ -1669,6 +1683,10 @@ namespace OpenSim.Region.Framework.Scenes.Serialization
             }
             if(Math.Abs(sop.SitActiveRange) > 1e-5)
                 writer.WriteElementString("SitActRange", sop.SitActiveRange.ToString(Culture.FormatProvider));
+            
+            WriteBytes(writer, "LinksetData", sop.SerializeLinksetData());
+            
+            
             writer.WriteEndElement();
         }
 

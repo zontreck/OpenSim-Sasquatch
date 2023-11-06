@@ -550,3 +550,7 @@ BEGIN;
 ALTER TABLE `land` ADD COLUMN `environment` MEDIUMTEXT default NULL;
 COMMIT;
 
+:VERSION 64         #----- Linkset Data Storage
+BEGIN;
+ALTER TABLE `prims` ADD COLUMN `linksetdata` blob default NULL;
+COMMIT;

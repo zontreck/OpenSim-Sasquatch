@@ -355,7 +355,8 @@ namespace OpenSim.Data.PGSQL
             ""ClickAction"" = :ClickAction, ""Material"" = :Material, ""CollisionSound"" = :CollisionSound, ""CollisionSoundVolume"" = :CollisionSoundVolume, ""PassTouches"" = :PassTouches,
             ""LinkNumber"" = :LinkNumber, ""MediaURL"" = :MediaURL, ""DynAttrs"" = :DynAttrs, ""Vehicle"" = :Vehicle,
             ""PhysInertia"" = :PhysInertia, ""standtargetx"" =:standtargetx, ""standtargety"" =:standtargety, ""standtargetz"" =:standtargetz,
-            ""sitactrange"" =:sitactrange, ""pseudocrc"" = :pseudocrc, ""sopanims"" = :sopanims
+            ""sitactrange"" =:sitactrange, ""pseudocrc"" = :pseudocrc, ""sopanims"" = :sopanims,
+            ""linksetdata"" =:linksetdata
 
         WHERE ""UUID"" = :UUID ;
 
@@ -371,7 +372,8 @@ namespace OpenSim.Data.PGSQL
             ""ForceMouselook"", ""ScriptAccessPin"", ""AllowedDrop"", ""DieAtEdge"", ""SalePrice"", ""SaleType"", ""ColorR"", ""ColorG"", ""ColorB"", ""ColorA"",
             ""ParticleSystem"", ""ClickAction"", ""Material"", ""CollisionSound"", ""CollisionSoundVolume"", ""PassTouches"", ""LinkNumber"", ""MediaURL"", ""DynAttrs"",
             ""PhysicsShapeType"", ""Density"", ""GravityModifier"", ""Friction"", ""Restitution"", ""PassCollisions"", ""RotationAxisLocks"", ""RezzerID"" , ""Vehicle"", ""PhysInertia"",
-            ""standtargetx"", ""standtargety"", ""standtargetz"", ""sitactrange"", ""pseudocrc"", ""sopanims""
+            ""standtargetx"", ""standtargety"", ""standtargetz"", ""sitactrange"", ""pseudocrc"", ""sopanims"",
+                   ""linksetdata""
             ) Select
             :UUID, :CreationDate, :Name, :Text, :Description, :SitName, :TouchName, :ObjectFlags, :OwnerMask, :NextOwnerMask, :GroupMask,
             :EveryoneMask, :BaseMask, :PositionX, :PositionY, :PositionZ, :GroupPositionX, :GroupPositionY, :GroupPositionZ, :VelocityX,
@@ -383,7 +385,7 @@ namespace OpenSim.Data.PGSQL
             :ForceMouselook, :ScriptAccessPin, :AllowedDrop, :DieAtEdge, :SalePrice, :SaleType, :ColorR, :ColorG, :ColorB, :ColorA,
             :ParticleSystem, :ClickAction, :Material, :CollisionSound, :CollisionSoundVolume, :PassTouches, :LinkNumber, :MediaURL, :DynAttrs,
             :PhysicsShapeType, :Density, :GravityModifier, :Friction, :Restitution, :PassCollisions, :RotationAxisLocks, :RezzerID, :Vehicle, :PhysInertia,
-            :standtargetx, :standtargety, :standtargetz,:sitactrange, :pseudocrc, :sopanims
+            :standtargetx, :standtargety, :standtargetz,:sitactrange, :pseudocrc, :sopanims, :linksetdata
             where not EXISTS (SELECT ""UUID"" FROM prims WHERE ""UUID"" = :UUID);
         ";
 
@@ -1406,6 +1408,9 @@ namespace OpenSim.Data.PGSQL
                 prim.Animations = null;
             }
 
+            if (!(primRow["linksetdata"] is DBNull))
+                prim.DeserializeLinksetData((byte[])primRow["linksetdata"]);
+
             return prim;
         }
 
@@ -1870,6 +1875,7 @@ namespace OpenSim.Data.PGSQL
             else
                 parameters.Add(_Database.CreateParameter("sopanims", null));
 
+            parameters.Add(_Database.CreateParameter("linksetdata", prim.SerializeLinksetData()));
             return parameters.ToArray();
         }
 

@@ -57,6 +57,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using OpenMetaverse.ImportExport.Collada14;
 using AssetLandmark = OpenSim.Framework.AssetLandmark;
 using GridRegion = OpenSim.Services.Interfaces.GridRegion;
 using LSL_Float = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLFloat;
@@ -18798,6 +18799,114 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             {
                 return src;
             }
+        }
+
+        public LSL_Integer llLinksetDataWrite(LSL_String name, LSL_String value)
+        {
+            return llLinksetDataWriteProtected(name, value, "");
+        }
+
+        public LSL_Integer llLinksetDataWriteProtected(LSL_String name, LSL_String value, LSL_String pass)
+        {
+            if (name == "") return ScriptBaseClass.LINKSETDATA_ENOKEY;
+
+            var rootPrim = m_host.ParentGroup.RootPart;
+            int ret = rootPrim.AddOrUpdateLinksetDataKey(name, value, pass);
+            object[] parameters = new object[]
+            {
+                new LSL_Integer(ScriptBaseClass.LINKSETDATA_UPDATE), name, value
+            };
+            if (ret == 0)
+            {
+                m_ScriptEngine.PostObjectEvent(rootPrim.LocalId,
+                    new EventParams("linkset_data", parameters, Array.Empty<DetectParams>()));
+                return ScriptBaseClass.LINKSETDATA_OK;
+            }
+            else
+            {
+                if (ret == 1)
+                {
+                    return ScriptBaseClass.LINKSETDATA_EMEMORY;
+                }
+
+                return ScriptBaseClass.LINKSETDATA_NOUPDATE;
+            }
+        }
+
+        public void llLinksetDataReset()
+        {
+            var rootPrim = m_host.ParentGroup.RootPart;
+            rootPrim.ResetLinksetData();
+
+            object[] parameters = new object[]
+            {
+                new LSL_Integer(ScriptBaseClass.LINKSETDATA_RESET), new LSL_String(""), new LSL_String("")
+            };
+
+            EventParams linksetDataParams = new EventParams("linkset_data", parameters, Array.Empty<DetectParams>());
+            m_ScriptEngine.PostObjectEvent(rootPrim.LocalId, linksetDataParams);
+        }
+
+        public LSL_Integer llLinksetDataAvailable()
+        {
+            var rootPrim = m_host.ParentGroup.RootPart;
+            return new LSL_Integer(rootPrim.linksetDataBytesFree);
+        }
+
+        public LSL_Integer llLinksetDataCountKeys()
+        {
+            return new LSL_Integer(m_host.ParentGroup.RootPart.LinksetDataKeys);
+        }
+
+        public LSL_Integer llLinksetDataDelete(LSL_String name)
+        {
+            return llLinksetDataDeleteProtected(name, "");
+        }
+
+        public LSL_Integer llLinksetDataDeleteProtected(LSL_String name, LSL_String pass)
+        {
+            var rootPrim = m_host.ParentGroup.RootPart;
+            int ret = rootPrim.DeleteLinksetDataKey(name, pass);
+
+            object[] parameters;
+            if (ret == 0)
+            {
+                parameters = new object[]
+                {
+                    new LSL_Integer(ScriptBaseClass.LINKSETDATA_OK), name, new LSL_String("")
+                };
+                
+            }else
+            {
+                return new LSL_Integer(ScriptBaseClass.LINKSETDATA_NOTFOUND);
+            }
+
+            m_ScriptEngine.PostObjectEvent(rootPrim.LocalId,
+                new EventParams("linkset_data", parameters, Array.Empty<DetectParams>()));
+            return new LSL_Integer(ScriptBaseClass.LINKSETDATA_OK);
+        }
+
+        public LSL_List llLinksetDataFindKeys(LSL_String pattern, LSL_Integer start, LSL_Integer count)
+        {
+            var rootPrim = m_host.ParentGroup.RootPart;
+            return new LSL_List(rootPrim.FindLinksetDataKeys(pattern, start, count));
+        }
+
+        public LSL_List llLinksetDataListKeys(LSL_Integer start, LSL_Integer count)
+        {
+            var rootPrim = m_host.ParentGroup.RootPart;
+            return new LSL_List(rootPrim.GetLinksetDataSubList(start, count));
+        }
+
+        public LSL_String llLinksetDataRead(LSL_String name)
+        {
+            return llLinksetDataReadProtected(name, "");
+        }
+
+        public LSL_String llLinksetDataReadProtected(LSL_String name, LSL_String pass)
+        {
+            var rootPrim = m_host.ParentGroup.RootPart;
+            return new LSL_String(rootPrim.ReadLinksetData(name, pass));
         }
     }
 

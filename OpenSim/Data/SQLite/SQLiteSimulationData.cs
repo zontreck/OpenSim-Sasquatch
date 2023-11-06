@@ -1250,6 +1250,8 @@ namespace OpenSim.Data.SQLite
 
             createCol(prims, "pseudocrc", typeof(int));
             createCol(prims, "sopanims", typeof(byte[]));
+            
+            createCol(prims, "linksetdata", typeof(byte[]));
 
             // Add in contraints
             prims.PrimaryKey = new DataColumn[] { prims.Columns["UUID"] };
@@ -1810,6 +1812,9 @@ namespace OpenSim.Data.SQLite
                 prim.Animations = null;
             }
 
+            if (!(row["linksetdata"] is DBNull))
+                prim.DeserializeLinksetData((byte[])row["linksetdata"]);
+
             return prim;
         }
 
@@ -2199,6 +2204,9 @@ namespace OpenSim.Data.SQLite
 
             row["pseudocrc"] = prim.PseudoCRC;
             row["sopanims"] = prim.SerializeAnimations();
+
+            if (prim.HasLinksetData)
+                row["linksetdata"] = prim.SerializeLinksetData();
         }
 
         /// <summary>
