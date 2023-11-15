@@ -4946,6 +4946,47 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             }
         }
 
+        public LSL_Integer llReturnObjectsByID(LSL_List objects)
+        {
+            if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_RETURN_OBJECTS) == 0)
+            {
+                llShout(ScriptBaseClass.DEBUG_CHANNEL, "Permission not granted: PERMISSION_RETURN_OBJECTS");
+                return ScriptBaseClass.ERR_RUNTIME_PERMISSIONS;
+            }
+
+            foreach (string obj in objects)
+            {
+                var pres = World.GetScenePresence(obj);
+            }
+        }
+
+        public LSL_Integer llReturnObjectsByOwner(string owner, LSL_Integer scope)
+        {
+            if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_RETURN_OBJECTS) == 0)
+            {
+                llShout(ScriptBaseClass.DEBUG_CHANNEL, "Permission not granted: PERMISSION_RETURN_OBJECTS");
+                return ScriptBaseClass.ERR_RUNTIME_PERMISSIONS;
+            }
+            
+            var parcel = World.LandChannel.GetLandObject(m_host.GetWorldPosition());
+            if (parcel.LandData.OwnerID.Equals(m_host.OwnerID) || IsEstateOwnerOrManager(m_host.OwnerID))
+            {
+                if (IsEstateOwnerOrManager(m_host.OwnerID) && scope == ScriptBaseClass.OBJECT_RETURN_REGION)
+                {
+                    
+                }
+                else
+                {
+                    return ScriptBaseClass.ERR_PARCEL_PERMISSIONS;
+                }
+            }
+            else
+            {
+                return ScriptBaseClass.ERR_PARCEL_PERMISSIONS;
+            }
+            
+        }
+
         [DebuggerNonUserCode]
         public void llRemoveInventory(string name)
         {
@@ -16912,14 +16953,22 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             return 0;
         }
 
+        public bool IsEstateOwnerOrManager(UUID owner)
+        {
+            
+            EstateSettings estate = World.RegionInfo.EstateSettings;
+            if (!estate.IsEstateOwner(m_host.OwnerID) || !estate.IsEstateManagerOrOwner(m_host.OwnerID))
+                return false;
+            return true;
+        }
+
         public LSL_Integer llManageEstateAccess(int action, string avatar)
         {
             if (!UUID.TryParse(avatar, out UUID id) || id.IsZero())
                 return 0;
 
+            if (!IsEstateOwnerOrManager(m_host.OwnerID)) return 0;
             EstateSettings estate = World.RegionInfo.EstateSettings;
-            if (!estate.IsEstateOwner(m_host.OwnerID) || !estate.IsEstateManagerOrOwner(m_host.OwnerID))
-                return 0;
 
             UserAccount account = m_userAccountService.GetUserAccount(RegionScopeID, id);
             bool isAccount = account != null ? true : false;
