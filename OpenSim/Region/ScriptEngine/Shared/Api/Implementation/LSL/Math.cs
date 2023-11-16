@@ -2,16 +2,19 @@ using System;
 using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
-using OpenSim.Region.Framework.Scenes;
 using OpenSim.Region.ScriptEngine.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.ScriptBase;
 
 namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 {
-    public partial class LSL_Api: MarshalByRefObject, ILSL_Api, IScriptApi
+    public partial class LSL_Api : MarshalByRefObject, ILSL_Api, IScriptApi
     {
-        
+        public void llResetTime()
+        {
+            m_timer = Util.GetTimeStampMS();
+        }
+
         //These are the implementations of the various ll-functions used by the LSL scripts.
         public LSL_Float llSin(double f)
         {
@@ -40,21 +43,20 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public LSL_Float llPow(double fbase, double fexponent)
         {
-            return (double)Math.Pow(fbase, fexponent);
+            return Math.Pow(fbase, fexponent);
         }
 
         public LSL_Integer llAbs(LSL_Integer i)
         {
             // changed to replicate LSL behaviour whereby minimum int value is returned untouched.
-            if (i == Int32.MinValue)
+            if (i == int.MinValue)
                 return i;
-            else
-                return Math.Abs(i);
+            return Math.Abs(i);
         }
 
         public LSL_Float llFabs(double f)
         {
-            return (double)Math.Abs(f);
+            return Math.Abs(f);
         }
 
         public LSL_Float llFrand(double mag)
@@ -106,47 +108,52 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         {
             LSL_Vector eul = new LSL_Vector();
 
-            double sqw = q1.s*q1.s;
-            double sqx = q1.x*q1.x;
-            double sqy = q1.z*q1.z;
-            double sqz = q1.y*q1.y;
-            double unit = sqx + sqy + sqz + sqw; // if normalised is one, otherwise is correction factor
-            double test = q1.x*q1.z + q1.y*q1.s;
-            if (test > 0.4999*unit) { // singularity at north pole
-                eul.z = 2 * Math.Atan2(q1.x,q1.s);
-                eul.y = Math.PI/2;
+            double sqw = q1.s * q1.s;
+            double sqx = q1.x * q1.x;
+            double sqy = q1.z * q1.z;
+            double sqz = q1.y * q1.y;
+            var unit = sqx + sqy + sqz + sqw; // if normalised is one, otherwise is correction factor
+            double test = q1.x * q1.z + q1.y * q1.s;
+            if (test > 0.4999 * unit)
+            {
+                // singularity at north pole
+                eul.z = 2 * Math.Atan2(q1.x, q1.s);
+                eul.y = Math.PI / 2;
                 eul.x = 0;
                 return eul;
             }
-            if (test < -0.4999*unit) { // singularity at south pole
-                eul.z = -2 * Math.Atan2(q1.x,q1.s);
-                eul.y = -Math.PI/2;
+
+            if (test < -0.4999 * unit)
+            {
+                // singularity at south pole
+                eul.z = -2 * Math.Atan2(q1.x, q1.s);
+                eul.y = -Math.PI / 2;
                 eul.x = 0;
                 return eul;
             }
-            eul.z = Math.Atan2(2*q1.z*q1.s-2*q1.x*q1.y , sqx - sqy - sqz + sqw);
-            eul.y = Math.Asin(2*test/unit);
-            eul.x = Math.Atan2(2*q1.x*q1.s-2*q1.z*q1.y , -sqx + sqy - sqz + sqw);
+
+            eul.z = Math.Atan2(2 * q1.z * q1.s - 2 * q1.x * q1.y, sqx - sqy - sqz + sqw);
+            eul.y = Math.Asin(2 * test / unit);
+            eul.x = Math.Atan2(2 * q1.x * q1.s - 2 * q1.z * q1.y, -sqx + sqy - sqz + sqw);
             return eul;
         }
 
         public LSL_Rotation llEuler2Rot(LSL_Vector v)
         {
-
-            double x,y,z,s;
+            double x, y, z, s;
             v.x *= 0.5;
             v.y *= 0.5;
             v.z *= 0.5;
-            double c1 = Math.Cos(v.x);
-            double c2 = Math.Cos(v.y);
-            double c1c2 = c1 * c2;
-            double s1 = Math.Sin(v.x);
-            double s2 = Math.Sin(v.y);
-            double s1s2 = s1 * s2;
-            double c1s2 = c1 * s2;
-            double s1c2 = s1 * c2;
-            double c3 = Math.Cos(v.z);
-            double s3 = Math.Sin(v.z);
+            var c1 = Math.Cos(v.x);
+            var c2 = Math.Cos(v.y);
+            var c1c2 = c1 * c2;
+            var s1 = Math.Sin(v.x);
+            var s2 = Math.Sin(v.y);
+            var s1s2 = s1 * s2;
+            var c1s2 = c1 * s2;
+            var s1c2 = s1 * c2;
+            var c3 = Math.Cos(v.z);
+            var s3 = Math.Sin(v.z);
 
             x = s1c2 * c3 + c1s2 * s3;
             y = c1s2 * c3 - s1c2 * s3;
@@ -159,60 +166,56 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         public LSL_Rotation llAxes2Rot(LSL_Vector fwd, LSL_Vector left, LSL_Vector up)
         {
             double s;
-            double tr = fwd.x + left.y + up.z + 1.0;
+            var tr = fwd.x + left.y + up.z + 1.0;
 
             if (tr >= 1.0)
             {
                 s = 0.5 / Math.Sqrt(tr);
                 return new LSL_Rotation(
-                        (left.z - up.y) * s,
-                        (up.x - fwd.z) * s,
-                        (fwd.y - left.x) * s,
-                        0.25 / s);
+                    (left.z - up.y) * s,
+                    (up.x - fwd.z) * s,
+                    (fwd.y - left.x) * s,
+                    0.25 / s);
             }
-            else
-            {
-                double max = (left.y > up.z) ? left.y : up.z;
 
-                if (max < fwd.x)
-                {
-                    s = Math.Sqrt(fwd.x - (left.y + up.z) + 1.0);
-                    double x = s * 0.5;
-                    s = 0.5 / s;
-                    return new LSL_Rotation(
-                            x,
-                            (fwd.y + left.x) * s,
-                            (up.x + fwd.z) * s,
-                            (left.z - up.y) * s);
-                }
-                else if (max == left.y)
-                {
-                    s = Math.Sqrt(left.y - (up.z + fwd.x) + 1.0);
-                    double y = s * 0.5;
-                    s = 0.5 / s;
-                    return new LSL_Rotation(
-                            (fwd.y + left.x) * s,
-                            y,
-                            (left.z + up.y) * s,
-                            (up.x - fwd.z) * s);
-                }
-                else
-                {
-                    s = Math.Sqrt(up.z - (fwd.x + left.y) + 1.0);
-                    double z = s * 0.5;
-                    s = 0.5 / s;
-                    return new LSL_Rotation(
-                            (up.x + fwd.z) * s,
-                            (left.z + up.y) * s,
-                            z,
-                            (fwd.y - left.x) * s);
-                }
+            double max = left.y > up.z ? left.y : up.z;
+
+            if (max < fwd.x)
+            {
+                s = Math.Sqrt(fwd.x - (left.y + up.z) + 1.0);
+                var x = s * 0.5;
+                s = 0.5 / s;
+                return new LSL_Rotation(
+                    x,
+                    (fwd.y + left.x) * s,
+                    (up.x + fwd.z) * s,
+                    (left.z - up.y) * s);
             }
+
+            if (max == left.y)
+            {
+                s = Math.Sqrt(left.y - (up.z + fwd.x) + 1.0);
+                var y = s * 0.5;
+                s = 0.5 / s;
+                return new LSL_Rotation(
+                    (fwd.y + left.x) * s,
+                    y,
+                    (left.z + up.y) * s,
+                    (up.x - fwd.z) * s);
+            }
+
+            s = Math.Sqrt(up.z - (fwd.x + left.y) + 1.0);
+            var z = s * 0.5;
+            s = 0.5 / s;
+            return new LSL_Rotation(
+                (up.x + fwd.z) * s,
+                (left.z + up.y) * s,
+                z,
+                (fwd.y - left.x) * s);
         }
 
         public LSL_Vector llRot2Fwd(LSL_Rotation r)
         {
-
             double x, y, z, m;
 
             m = r.x * r.x + r.y * r.y + r.z * r.z + r.s * r.s;
@@ -231,12 +234,11 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             x = r.x * r.x - r.y * r.y - r.z * r.z + r.s * r.s;
             y = 2 * (r.x * r.y + r.z * r.s);
             z = 2 * (r.x * r.z - r.y * r.s);
-            return (new LSL_Vector(x, y, z));
+            return new LSL_Vector(x, y, z);
         }
 
         public LSL_Vector llRot2Left(LSL_Rotation r)
         {
-
             double x, y, z, m;
 
             m = r.x * r.x + r.y * r.y + r.z * r.z + r.s * r.s;
@@ -255,7 +257,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             x = 2 * (r.x * r.y - r.z * r.s);
             y = -r.x * r.x + r.y * r.y - r.z * r.z + r.s * r.s;
             z = 2 * (r.x * r.s + r.y * r.z);
-            return (new LSL_Vector(x, y, z));
+            return new LSL_Vector(x, y, z);
         }
 
         public LSL_Vector llRot2Up(LSL_Rotation r)
@@ -278,7 +280,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             x = 2 * (r.x * r.z + r.y * r.s);
             y = 2 * (-r.x * r.s + r.y * r.z);
             z = -r.x * r.x - r.y * r.y + r.z * r.z + r.s * r.s;
-            return (new LSL_Vector(x, y, z));
+            return new LSL_Vector(x, y, z);
         }
 
         public LSL_Rotation llRotBetween(LSL_Vector a, LSL_Vector b)
@@ -293,9 +295,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             LSL_Float vec_b_mag = LSL_Vector.MagSquare(b);
             if (vec_a_mag < 1e-12 ||
                 vec_b_mag < 1e-12)
-            {
                 return new LSL_Rotation(0.0f, 0.0f, 0.0f, 1.0f);
-            }
 
             // Normalize
             a = llVecNorm(a);
@@ -303,39 +303,34 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
             // Calculate axis and rotation angle
             LSL_Vector axis = a % b;
-            LSL_Float cos_theta  = a * b;
+            LSL_Float cos_theta = a * b;
 
             // Check if parallel
-            if (cos_theta > 0.99999)
-            {
-                return new LSL_Rotation(0.0f, 0.0f, 0.0f, 1.0f);
-            }
-
+            if (cos_theta > 0.99999) return new LSL_Rotation(0.0f, 0.0f, 0.0f, 1.0f);
             // Check if anti-parallel
-            else if (cos_theta < -0.99999)
+            if (cos_theta < -0.99999)
             {
-                LSL_Vector orthog_axis = new LSL_Vector(1.0, 0.0, 0.0) - (a.x / (a * a) * a);
-                if (LSL_Vector.MagSquare(orthog_axis)  < 1e-12)
+                LSL_Vector orthog_axis = new LSL_Vector(1.0, 0.0, 0.0) - a.x / (a * a) * a;
+                if (LSL_Vector.MagSquare(orthog_axis) < 1e-12)
                     orthog_axis = new LSL_Vector(0.0, 0.0, 1.0);
                 return new LSL_Rotation((float)orthog_axis.x, (float)orthog_axis.y, (float)orthog_axis.z, 0.0);
             }
-            else // other rotation
-            {
-                LSL_Float theta = (LSL_Float)Math.Acos(cos_theta) * 0.5f;
-                axis = llVecNorm(axis);
-                double x, y, z, s, t;
-                s = Math.Cos(theta);
-                t = Math.Sin(theta);
-                x = axis.x * t;
-                y = axis.y * t;
-                z = axis.z * t;
-                return new LSL_Rotation(x,y,z,s);
-            }
+
+            // other rotation
+            LSL_Float theta = (LSL_Float)Math.Acos(cos_theta) * 0.5f;
+            axis = llVecNorm(axis);
+            double x, y, z, s, t;
+            s = Math.Cos(theta);
+            t = Math.Sin(theta);
+            x = axis.x * t;
+            y = axis.y * t;
+            z = axis.z * t;
+            return new LSL_Rotation(x, y, z, s);
         }
-        
+
         public LSL_Float llGround(LSL_Vector offset)
         {
-            Vector3 pos = m_host.GetWorldPosition() + (Vector3)offset;
+            var pos = m_host.GetWorldPosition() + (Vector3)offset;
 
             //Get the slope normal.  This gives us the equation of the plane tangent to the slope.
             LSL_Vector vsn = llGroundNormal(offset);
@@ -351,51 +346,52 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                 pos.Y = World.Heightmap.Height - 1;
 
             //Get the height for the integer coordinates from the Heightmap
-            float baseheight = (float)World.Heightmap[(int)pos.X, (int)pos.Y];
+            var baseheight = World.Heightmap[(int)pos.X, (int)pos.Y];
 
             //Calculate the difference between the actual coordinates and the integer coordinates
-            float xdiff = pos.X - (float)((int)pos.X);
-            float ydiff = pos.Y - (float)((int)pos.Y);
+            var xdiff = pos.X - (int)pos.X;
+            var ydiff = pos.Y - (int)pos.Y;
 
             //Use the equation of the tangent plane to adjust the height to account for slope
 
-            return (((vsn.x * xdiff) + (vsn.y * ydiff)) / (-1 * vsn.z)) + baseheight;
+            return (vsn.x * xdiff + vsn.y * ydiff) / (-1 * vsn.z) + baseheight;
         }
 
         public LSL_Float llCloud(LSL_Vector offset)
         {
-            float cloudCover = 0f;
-            ICloudModule module = World.RequestModuleInterface<ICloudModule>();
+            var cloudCover = 0f;
+            var module = World.RequestModuleInterface<ICloudModule>();
             if (module != null)
             {
-                Vector3 pos = m_host.GetWorldPosition();
-                int x = (int)(pos.X + offset.x);
-                int y = (int)(pos.Y + offset.y);
+                var pos = m_host.GetWorldPosition();
+                var x = (int)(pos.X + offset.x);
+                var y = (int)(pos.Y + offset.y);
 
                 cloudCover = module.CloudCover(x, y, 0);
-
             }
+
             return cloudCover;
         }
 
         public LSL_Vector llWind(LSL_Vector offset)
         {
             LSL_Vector wind = new LSL_Vector(0, 0, 0);
-            IWindModule module = World.RequestModuleInterface<IWindModule>();
+            var module = World.RequestModuleInterface<IWindModule>();
             if (module != null)
             {
-                Vector3 pos = m_host.GetWorldPosition();
-                int x = (int)(pos.X + offset.x);
-                int y = (int)(pos.Y + offset.y);
+                var pos = m_host.GetWorldPosition();
+                var x = (int)(pos.X + offset.x);
+                var y = (int)(pos.Y + offset.y);
 
-                Vector3 windSpeed = module.WindSpeed(x, y, 0);
+                var windSpeed = module.WindSpeed(x, y, 0);
 
                 wind.x = windSpeed.X;
                 wind.y = windSpeed.Y;
             }
+
             return wind;
         }
-        
+
 
         public void llApplyImpulse(LSL_Vector force, LSL_Integer local)
         {
@@ -406,6 +402,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                 v.Normalize();
                 v = v * 20000.0f;
             }
+
             m_host.ApplyImpulse(v, local != 0);
         }
 
@@ -422,7 +419,6 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public LSL_Vector llGetTorque()
         {
-
             return new LSL_Vector(m_host.ParentGroup.GetTorque());
         }
 
@@ -435,12 +431,11 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public LSL_Vector llGetVel()
         {
-
-            Vector3 vel = Vector3.Zero;
+            var vel = Vector3.Zero;
 
             if (m_host.ParentGroup.IsAttachment)
             {
-                ScenePresence avatar = m_host.ParentGroup.Scene.GetScenePresence(m_host.ParentGroup.AttachedAvatar);
+                var avatar = m_host.ParentGroup.Scene.GetScenePresence(m_host.ParentGroup.AttachedAvatar);
                 if (avatar != null)
                     vel = avatar.GetWorldVelocity();
             }
@@ -454,57 +449,48 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public LSL_Vector llGetAccel()
         {
-
             return new LSL_Vector(m_host.Acceleration);
         }
 
         public LSL_Vector llGetOmega()
         {
-            Vector3 avel = m_host.AngularVelocity;
+            var avel = m_host.AngularVelocity;
             return new LSL_Vector(avel.X, avel.Y, avel.Z);
         }
 
         public LSL_Float llGetTimeOfDay()
         {
-            return (double)((DateTime.Now.TimeOfDay.TotalMilliseconds / 1000) % (3600 * 4));
+            return DateTime.Now.TimeOfDay.TotalMilliseconds / 1000 % (3600 * 4);
         }
 
         public LSL_Float llGetWallclock()
         {
-            DateTimeOffset dateTimeOffset = DateTimeOffset.Now;
+            var dateTimeOffset = DateTimeOffset.Now;
 
             if (string.IsNullOrEmpty(m_GetWallclockTimeZone) == false)
-            {
-                dateTimeOffset = 
+                dateTimeOffset =
                     TimeZoneInfo.ConvertTimeBySystemTimeZoneId(
                         DateTimeOffset.UtcNow, m_GetWallclockTimeZone);
-            }
 
             return Math.Truncate(dateTimeOffset.DateTime.TimeOfDay.TotalSeconds);
         }
 
         public LSL_Float llGetTime()
         {
-            double ScriptTime = Util.GetTimeStampMS() - m_timer;
-            return (float)Math.Round((ScriptTime / 1000.0), 3);
-        }
-
-        public void llResetTime()
-        {
-            m_timer = Util.GetTimeStampMS();
+            var ScriptTime = Util.GetTimeStampMS() - m_timer;
+            return (float)Math.Round(ScriptTime / 1000.0, 3);
         }
 
         public LSL_Float llGetAndResetTime()
         {
-            double now = Util.GetTimeStampMS();
-            double ScriptTime = now - m_timer;
+            var now = Util.GetTimeStampMS();
+            var ScriptTime = now - m_timer;
             m_timer = now;
-            return (float)Math.Round((ScriptTime / 1000.0), 3);
+            return (float)Math.Round(ScriptTime / 1000.0, 3);
         }
 
         public LSL_Integer llGiveMoney(LSL_Key destination, LSL_Integer amount)
         {
-
             if (m_item.PermsGranter.IsZero())
                 return 0;
 
@@ -520,7 +506,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                 return 0;
             }
 
-            IMoneyModule money = World.RequestModuleInterface<IMoneyModule>();
+            var money = World.RequestModuleInterface<IMoneyModule>();
             if (money == null)
             {
                 NotImplemented("llGiveMoney");
@@ -530,43 +516,34 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             Action<string> act = dontcare =>
             {
                 money.ObjectGiveMoney(m_host.ParentGroup.RootPart.UUID, m_host.ParentGroup.RootPart.OwnerID,
-                    toID, amount,UUID.Zero, out string reason);
+                    toID, amount, UUID.Zero, out string reason);
             };
 
             m_AsyncCommands.DataserverPlugin.RegisterRequest(m_host.LocalId, m_item.ItemID, act);
             return 0;
         }
-        
-        
-        
+
+
         public LSL_Float llGetMass()
         {
-
             if (m_host.ParentGroup.IsAttachment)
             {
-                ScenePresence attachedAvatar = World.GetScenePresence(m_host.ParentGroup.AttachedAvatar);
+                var attachedAvatar = World.GetScenePresence(m_host.ParentGroup.AttachedAvatar);
 
                 if (attachedAvatar != null)
-                {
                     return attachedAvatar.GetMass();
-                }
-                else
-                {
-                    return 0;
-                }
+                return 0;
             }
-            else
-            {
-                // new SL always returns object mass
+
+            // new SL always returns object mass
 //                if (m_host.IsRoot)
 //                {
-                return m_host.ParentGroup.GetMass();
+            return m_host.ParentGroup.GetMass();
 //                }
 //                else
 //                {
 //                    return m_host.GetMass();
 //                }
-            }
         }
 
         public LSL_Float llGetMassMKS()
@@ -574,6 +551,88 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             return 100f * llGetMass();
         }
 
-        
+        public LSL_Float llWater(LSL_Vector offset)
+        {
+            return World.RegionInfo.RegionSettings.WaterHeight;
+        }
+
+
+        // Xantor 29/apr/2008
+        // Returns rotation described by rotating angle radians about axis.
+        // q = cos(a/2) + i (x * sin(a/2)) + j (y * sin(a/2)) + k (z * sin(a/2))
+        public LSL_Rotation llAxisAngle2Rot(LSL_Vector axis, double angle)
+        {
+            double x, y, z, s, t;
+
+            s = Math.Cos(angle * 0.5);
+            t = Math.Sin(angle * 0.5); // temp value to avoid 2 more sin() calcs
+            axis = LSL_Vector.Norm(axis);
+            x = axis.x * t;
+            y = axis.y * t;
+            z = axis.z * t;
+
+            return new LSL_Rotation(x, y, z, s);
+        }
+
+        /// <summary>
+        ///     Returns the axis of rotation for a quaternion
+        /// </summary>
+        /// <returns></returns>
+        /// <param name='rot'></param>
+        public LSL_Vector llRot2Axis(LSL_Rotation rot)
+        {
+            rot.Normalize();
+
+            var s = Math.Sqrt(1 - rot.s * rot.s);
+            if (s < 1e-8)
+                return new LSL_Vector(0, 0, 0);
+
+            var invS = 1.0 / s;
+            if (rot.s < 0)
+                invS = -invS;
+            return new LSL_Vector(rot.x * invS, rot.y * invS, rot.z * invS);
+        }
+
+
+        // Returns the angle of a quaternion (see llRot2Axis for the axis)
+        public LSL_Float llRot2Angle(LSL_Rotation rot)
+        {
+            rot.Normalize();
+
+            var angle = 2 * Math.Acos(rot.s);
+            if (angle > Math.PI)
+                angle = 2 * Math.PI - angle;
+
+            return angle;
+        }
+
+        public LSL_Float llAcos(LSL_Float val)
+        {
+            return Math.Acos(val);
+        }
+
+        public LSL_Float llAsin(LSL_Float val)
+        {
+            return Math.Asin(val);
+        }
+
+        // jcochran 5/jan/2012
+        public LSL_Float llAngleBetween(LSL_Rotation a, LSL_Rotation b)
+        {
+            var aa = a.x * a.x + a.y * a.y + a.z * a.z + a.s * a.s;
+            var bb = b.x * b.x + b.y * b.y + b.z * b.z + b.s * b.s;
+            var aa_bb = aa * bb;
+            if (aa_bb == 0) return 0.0;
+            var ab = a.x * b.x + a.y * b.y + a.z * b.z + a.s * b.s;
+            var quotient = ab * ab / aa_bb;
+            if (quotient >= 1.0) return 0.0;
+            return Math.Acos(2 * quotient - 1);
+        }
+
+
+        public LSL_Vector llGetCenterOfMass()
+        {
+            return new LSL_Vector(m_host.GetCenterOfMass());
+        }
     }
 }
