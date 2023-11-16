@@ -4954,10 +4954,29 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                 return ScriptBaseClass.ERR_RUNTIME_PERMISSIONS;
             }
 
-            foreach (string obj in objects)
+            int X;
+            int count;
+            foreach (object obj in objects)
             {
-                var pres = World.GetScenePresence(obj);
+                try
+                {
+
+                    string id = (string)obj;
+                    if ()
+                    {
+                        var sog = World.GetSceneObjectGroup(str);
+                        
+                    }
+                }
+                catch (Exception e)
+                {
+                    llShout(ScriptBaseClass.DEBUG_CHANNEL, $"Entry #{X} was not a valid key");
+                }
+
+                X++;
             }
+
+            return new LSL_Integer(count);
         }
 
         public LSL_Integer llReturnObjectsByOwner(string owner, LSL_Integer scope)
