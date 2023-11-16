@@ -1,4 +1,33 @@
+/*
+ * Copyright (c) Contributors, http://opensimulator.org/
+ * See CONTRIBUTORS.TXT for a full list of copyright holders.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the OpenSimulator Project nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using OpenMetaverse;
 using OpenSim.Framework;
@@ -9,13 +38,21 @@ using OpenSim.Region.PhysicsModules.SharedBase;
 using OpenSim.Region.ScriptEngine.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.ScriptBase;
-using PermissionMask = OpenMetaverse.PermissionMask;
+using OpenSim.Services.Interfaces;
+using LSL_Float = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLFloat;
+using LSL_Integer = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLInteger;
+using LSL_Key = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_List = OpenSim.Region.ScriptEngine.Shared.LSL_Types.list;
+using LSL_Rotation = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Quaternion;
+using LSL_String = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_Vector = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Vector3;
+using PermissionMask = OpenSim.Framework.PermissionMask;
 
-namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
+namespace OpenSim.Region.ScriptEngine.Shared.Api
 {
     public partial class LSL_Api : MarshalByRefObject, ILSL_Api, IScriptApi
     {
-        public LSL_Types.LSLFloat llGetAlpha(int face)
+        public LSL_Float llGetAlpha(int face)
         {
             return GetAlpha(m_host, face);
         }
@@ -33,7 +70,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                     SetAlpha(part, alpha, face);
         }
 
-        public LSL_Types.Vector3 llGetColor(int face)
+        public LSL_Vector llGetColor(int face)
         {
             return GetColor(m_host, face);
         }
@@ -146,14 +183,14 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         }
 
 
-        public void llSetScale(LSL_Types.Vector3 scale)
+        public void llSetScale(LSL_Vector scale)
         {
             SetScale(m_host, scale);
         }
 
-        public LSL_Types.Vector3 llGetScale()
+        public LSL_Vector llGetScale()
         {
-            return new LSL_Types.Vector3(m_host.Scale.X, m_host.Scale.Y, m_host.Scale.Z);
+            return new LSL_Vector(m_host.Scale.X, m_host.Scale.Y, m_host.Scale.Z);
         }
 
         public void llSetClickAction(int action)
@@ -163,7 +200,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             m_host.ScheduleFullUpdate();
         }
 
-        public void llSetColor(LSL_Types.Vector3 color, int face)
+        public void llSetColor(LSL_Vector color, int face)
         {
             SetColor(m_host, color, face);
         }
@@ -353,6 +390,50 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             foreach (var part in parts) SetTextureAnim(part, mode, face, sizex, sizey, start, length, rate);
         }
 
+        public void llSetRemoteScriptAccessPin(int pin)
+        {
+            m_host.ScriptAccessPin = pin;
+        }
+
+        public void llRemoteLoadScriptPin(string target, string name, int pin, int running, int start_param)
+        {
+            if (!UUID.TryParse(target, out var destId) || destId.IsZero())
+            {
+                Error("llRemoteLoadScriptPin", "invalid key '" + target + "'");
+                return;
+            }
+
+            // target must be a different prim than the one containing the script
+            if (m_host.UUID.Equals(destId)) return;
+
+            // copy the first script found with this inventory name
+            var item = m_host.Inventory.GetInventoryItem(name);
+
+            // make sure the object is a script
+            if (item == null || item.Type != 10)
+            {
+                Error("llRemoteLoadScriptPin", "Can't find script '" + name + "'");
+                return;
+            }
+
+            if ((item.BasePermissions & (uint)PermissionMask.Copy) == 0)
+            {
+                Error("llRemoteLoadScriptPin", "No copy rights");
+                return;
+            }
+
+            // the rest of the permission checks are done in RezScript, so check the pin there as well
+            World.RezScriptFromPrim(item.ItemID, m_host, destId, pin, running, start_param);
+
+            // this will cause the delay even if the script pin or permissions were wrong - seems ok
+            ScriptSleep(m_sleepMsOnRemoteLoadScriptPin);
+        }
+
+        public void llSetObjectDesc(string desc)
+        {
+            m_host.Description = desc ?? string.Empty;
+        }
+
         public LSL_Integer llScaleByFactor(double scaling_factor)
         {
             var group = m_host.ParentGroup;
@@ -383,7 +464,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             if (group == null || group.IsDeleted || group.inTransit)
                 return 1.0f;
 
-            return (LSL_Float)group.GetMaxGroupResizeScale();
+            return group.GetMaxGroupResizeScale();
         }
 
         public LSL_Float llGetMinScaleFactor()
@@ -393,7 +474,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             if (group == null || group.IsDeleted || group.inTransit)
                 return 1.0f;
 
-            return (LSL_Float)group.GetMinGroupResizeScale();
+            return group.GetMinGroupResizeScale();
         }
 
 
@@ -600,7 +681,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public LSL_Vector llGetForce()
         {
-            LSL_Vector force = new LSL_Vector(0.0, 0.0, 0.0);
+            var force = new LSL_Vector(0.0, 0.0, 0.0);
 
 
             if (!m_host.ParentGroup.IsDeleted) force = m_host.ParentGroup.RootPart.GetForce();
@@ -664,7 +745,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public LSL_List llGetObjectAnimationNames()
         {
-            LSL_List ret = new LSL_List();
+            var ret = new LSL_List();
 
             if (m_host.AnimationsNames == null || m_host.AnimationsNames.Count == 0)
                 return ret;
@@ -911,7 +992,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                                 PresenceInfo pinfo = null;
                                 if (!m_PresenceInfoCache.TryGetValue(uuid, out pinfo))
                                 {
-                                    PresenceInfo[] pinfos = World.PresenceService.GetAgents(new[] { uuid.ToString() });
+                                    var pinfos = World.PresenceService.GetAgents(new[] { uuid.ToString() });
                                     if (pinfos != null && pinfos.Length > 0)
                                         foreach (var p in pinfos)
                                             if (!p.RegionID.IsZero())
@@ -1096,6 +1177,521 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         public LSL_String llGetObjectName()
         {
             return m_host.Name ?? string.Empty;
+        }
+
+
+        public void llSitTarget(LSL_Vector offset, LSL_Rotation rot)
+        {
+            SitTarget(m_host, offset, rot);
+        }
+
+        public void llLinkSitTarget(LSL_Integer link, LSL_Vector offset, LSL_Rotation rot)
+        {
+            if (link == ScriptBaseClass.LINK_ROOT)
+            {
+                SitTarget(m_host.ParentGroup.RootPart, offset, rot);
+            }
+            else if (link == ScriptBaseClass.LINK_THIS)
+            {
+                SitTarget(m_host, offset, rot);
+            }
+            else
+            {
+                var part = m_host.ParentGroup.GetLinkNumPart(link);
+                if (null != part) SitTarget(part, offset, rot);
+            }
+        }
+
+        public LSL_Key llAvatarOnSitTarget()
+        {
+            return m_host.SitTargetAvatar.ToString();
+        }
+
+        // http://wiki.secondlife.com/wiki/LlAvatarOnLinkSitTarget
+        public LSL_Key llAvatarOnLinkSitTarget(LSL_Integer linknum)
+        {
+            if (linknum == ScriptBaseClass.LINK_SET ||
+                linknum == ScriptBaseClass.LINK_ALL_CHILDREN ||
+                linknum == ScriptBaseClass.LINK_ALL_OTHERS ||
+                linknum == 0)
+                return ScriptBaseClass.NULL_KEY;
+
+            var parts = GetLinkParts(linknum);
+            if (parts.Count == 0)
+                return ScriptBaseClass.NULL_KEY;
+            return parts[0].SitTargetAvatar.ToString();
+        }
+
+        public void llSetPrimitiveParams(LSL_List rules)
+        {
+            SetLinkPrimParams(ScriptBaseClass.LINK_THIS, rules, "llSetPrimitiveParams");
+
+            ScriptSleep(m_sleepMsOnSetPrimitiveParams);
+        }
+
+        public void llSetLinkPrimitiveParams(int linknumber, LSL_List rules)
+        {
+            SetLinkPrimParams(linknumber, rules, "llSetLinkPrimitiveParams");
+
+            ScriptSleep(m_sleepMsOnSetLinkPrimitiveParams);
+        }
+
+        public void llSetLinkPrimitiveParamsFast(int linknumber, LSL_List rules)
+        {
+            SetLinkPrimParams(linknumber, rules, "llSetLinkPrimitiveParamsFast");
+        }
+
+        public void llSetKeyframedMotion(LSL_List frames, LSL_List options)
+        {
+            var group = m_host.ParentGroup;
+
+            if (group.RootPart.PhysActor != null && group.RootPart.PhysActor.IsPhysical)
+                return;
+            if (group.IsAttachment)
+                return;
+
+            if (frames.Data.Length > 0) // We are getting a new motion
+            {
+                if (group.RootPart.KeyframeMotion != null)
+                    group.RootPart.KeyframeMotion.Delete();
+                group.RootPart.KeyframeMotion = null;
+
+                var idx = 0;
+
+                var mode = KeyframeMotion.PlayMode.Forward;
+                var data = KeyframeMotion.DataFormat.Translation | KeyframeMotion.DataFormat.Rotation;
+
+                while (idx < options.Data.Length)
+                {
+                    int option = options.GetLSLIntegerItem(idx++);
+                    var remain = options.Data.Length - idx;
+
+                    switch (option)
+                    {
+                        case ScriptBaseClass.KFM_MODE:
+                            if (remain < 1)
+                                break;
+                            int modeval = options.GetLSLIntegerItem(idx++);
+                            switch (modeval)
+                            {
+                                case ScriptBaseClass.KFM_FORWARD:
+                                    mode = KeyframeMotion.PlayMode.Forward;
+                                    break;
+                                case ScriptBaseClass.KFM_REVERSE:
+                                    mode = KeyframeMotion.PlayMode.Reverse;
+                                    break;
+                                case ScriptBaseClass.KFM_LOOP:
+                                    mode = KeyframeMotion.PlayMode.Loop;
+                                    break;
+                                case ScriptBaseClass.KFM_PING_PONG:
+                                    mode = KeyframeMotion.PlayMode.PingPong;
+                                    break;
+                            }
+
+                            break;
+                        case ScriptBaseClass.KFM_DATA:
+                            if (remain < 1)
+                                break;
+                            int dataval = options.GetLSLIntegerItem(idx++);
+                            data = (KeyframeMotion.DataFormat)dataval;
+                            break;
+                    }
+                }
+
+                group.RootPart.KeyframeMotion = new KeyframeMotion(group, mode, data);
+
+                idx = 0;
+
+                var elemLength = 2;
+                if (data == (KeyframeMotion.DataFormat.Translation | KeyframeMotion.DataFormat.Rotation))
+                    elemLength = 3;
+
+                var keyframes = new List<KeyframeMotion.Keyframe>();
+                var hasTranslation = (data & KeyframeMotion.DataFormat.Translation) != 0;
+                var hasRotation = (data & KeyframeMotion.DataFormat.Rotation) != 0;
+                while (idx < frames.Data.Length)
+                {
+                    var remain = frames.Data.Length - idx;
+
+                    if (remain < elemLength)
+                        break;
+
+                    var frame = new KeyframeMotion.Keyframe
+                    {
+                        Position = null,
+                        Rotation = null
+                    };
+
+                    if (hasTranslation)
+                    {
+                        var tempv = frames.GetVector3Item(idx++);
+                        frame.Position = new Vector3((float)tempv.x, (float)tempv.y, (float)tempv.z);
+                    }
+
+                    if (hasRotation)
+                    {
+                        var tempq = frames.GetQuaternionItem(idx++);
+                        var q = new Quaternion((float)tempq.x, (float)tempq.y, (float)tempq.z, (float)tempq.s);
+                        frame.Rotation = q;
+                    }
+
+                    var tempf = (float)frames.GetLSLFloatItem(idx++);
+                    frame.TimeMS = (int)(tempf * 1000.0f);
+
+                    keyframes.Add(frame);
+                }
+
+                group.RootPart.KeyframeMotion.SetKeyframes(keyframes.ToArray());
+                group.RootPart.KeyframeMotion.Start();
+            }
+            else
+            {
+                if (group.RootPart.KeyframeMotion == null)
+                    return;
+
+                if (options.Data.Length == 0)
+                {
+                    group.RootPart.KeyframeMotion.Stop();
+                    return;
+                }
+
+                var idx = 0;
+
+                while (idx < options.Data.Length)
+                {
+                    int option = options.GetLSLIntegerItem(idx++);
+
+                    switch (option)
+                    {
+                        case ScriptBaseClass.KFM_COMMAND:
+                            int cmd = options.GetLSLIntegerItem(idx++);
+                            switch (cmd)
+                            {
+                                case ScriptBaseClass.KFM_CMD_PLAY:
+                                    group.RootPart.KeyframeMotion.Start();
+                                    break;
+                                case ScriptBaseClass.KFM_CMD_STOP:
+                                    group.RootPart.KeyframeMotion.Stop();
+                                    break;
+                                case ScriptBaseClass.KFM_CMD_PAUSE:
+                                    group.RootPart.KeyframeMotion.Pause();
+                                    break;
+                            }
+
+                            break;
+                    }
+                }
+            }
+        }
+
+        public LSL_List llGetPhysicsMaterial()
+        {
+            var result = new LSL_List();
+
+            result.Add(new LSL_Float(m_host.GravityModifier));
+            result.Add(new LSL_Float(m_host.Restitution));
+            result.Add(new LSL_Float(m_host.Friction));
+            result.Add(new LSL_Float(m_host.Density));
+
+            return result;
+        }
+
+        public void llSetPhysicsMaterial(int material_bits,
+            LSL_Float material_gravity_modifier, LSL_Float material_restitution,
+            LSL_Float material_friction, LSL_Float material_density)
+        {
+            SetPhysicsMaterial(m_host, material_bits, (float)material_density, (float)material_friction,
+                (float)material_restitution, (float)material_gravity_modifier);
+        }
+
+        public LSL_Vector llGetRootPosition()
+        {
+            return new LSL_Vector(m_host.ParentGroup.AbsolutePosition);
+        }
+
+        /// <summary>
+        ///     http://lslwiki.net/lslwiki/wakka.php?wakka=llGetRot
+        ///     http://lslwiki.net/lslwiki/wakka.php?wakka=ChildRotation
+        ///     Also tested in sl in regards to the behaviour in attachments/mouselook
+        ///     In the root prim:-
+        ///     Returns the object rotation if not attached
+        ///     Returns the avatars rotation if attached
+        ///     Returns the camera rotation if attached and the avatar is in mouselook
+        /// </summary>
+        public LSL_Rotation llGetRootRotation()
+        {
+            Quaternion q;
+            if (m_host.ParentGroup.AttachmentPoint != 0)
+            {
+                var avatar = World.GetScenePresence(m_host.ParentGroup.AttachedAvatar);
+                if (avatar != null)
+                    if ((avatar.AgentControlFlags & (uint)AgentManager.ControlFlags.AGENT_CONTROL_MOUSELOOK) != 0)
+                        q = avatar.CameraRotation; // Mouselook
+                    else
+                        q = avatar.GetWorldRotation(); // Currently infrequently updated so may be inaccurate
+                else
+                    q = m_host.ParentGroup.GroupRotation; // Likely never get here but just in case
+            }
+            else
+            {
+                q = m_host.ParentGroup.GroupRotation; // just the group rotation
+            }
+
+            return new LSL_Rotation(q);
+        }
+
+        public LSL_String llGetObjectDesc()
+        {
+            return m_host.Description ?? string.Empty;
+        }
+
+        public LSL_Key llGetCreator()
+        {
+            return m_host.CreatorID.ToString();
+        }
+
+        public LSL_Integer llGetNumberOfPrims()
+        {
+            return m_host.ParentGroup.PrimCount + m_host.ParentGroup.GetSittingAvatarsCount();
+        }
+
+        /// <summary>
+        ///     Full implementation of llGetBoundingBox according to SL 2015-04-15.
+        ///     http://wiki.secondlife.com/wiki/LlGetBoundingBox
+        ///     http://lslwiki.net/lslwiki/wakka.php?wakka=llGetBoundingBox
+        ///     Returns local bounding box of avatar without attachments
+        ///     if target is non-seated avatar or prim/mesh in avatar attachment.
+        ///     Returns local bounding box of object
+        ///     if target is seated avatar or prim/mesh in object.
+        ///     Uses less accurate box models for speed.
+        /// </summary>
+        public LSL_List llGetBoundingBox(string obj)
+        {
+            var result = new LSL_List();
+
+            // If the ID is not valid, return null result
+            if (!UUID.TryParse(obj, out var objID) || objID.IsZero())
+            {
+                result.Add(new LSL_Vector());
+                result.Add(new LSL_Vector());
+                return result;
+            }
+
+            // Check if this is an attached prim. If so, replace
+            // the UUID with the avatar UUID and report it's bounding box
+            var part = World.GetSceneObjectPart(objID);
+            if (part != null && part.ParentGroup.IsAttachment)
+                objID = part.ParentGroup.AttachedAvatar;
+
+            // Find out if this is an avatar ID. If so, return it's box
+            var presence = World.GetScenePresence(objID);
+            if (presence != null)
+            {
+                LSL_Vector lower;
+                LSL_Vector upper;
+
+                var box = presence.Appearance.AvatarBoxSize * 0.5f;
+
+                if (presence.Animator.Animations.ImplicitDefaultAnimation.AnimID.Equals(
+                        DefaultAvatarAnimations.AnimsUUIDbyName["SIT_GROUND_CONSTRAINED"]))
+                {
+                    // This is for ground sitting avatars TODO!
+                    lower = new LSL_Vector(-box.X - 0.1125, -box.Y, box.Z * -1.0f);
+                    upper = new LSL_Vector(box.X + 0.1125, box.Y, box.Z * -1.0f);
+                }
+                else
+                {
+                    // This is for standing/flying avatars
+                    lower = new LSL_Vector(-box.X, -box.Y, -box.Z);
+                    upper = new LSL_Vector(box.X, box.Y, box.Z);
+                }
+
+                if (lower.x > upper.x)
+                    lower.x = upper.x;
+                if (lower.y > upper.y)
+                    lower.y = upper.y;
+                if (lower.z > upper.z)
+                    lower.z = upper.z;
+
+                result.Add(lower);
+                result.Add(upper);
+                return result;
+            }
+
+            part = World.GetSceneObjectPart(objID);
+
+            // Currently only works for single prims without a sitting avatar
+            if (part == null)
+            {
+                result.Add(new LSL_Vector());
+                result.Add(new LSL_Vector());
+                return result;
+            }
+
+            var sog = part.ParentGroup;
+            if (sog.IsDeleted)
+            {
+                result.Add(new LSL_Vector());
+                result.Add(new LSL_Vector());
+                return result;
+            }
+
+            sog.GetBoundingBox(out var minX, out var maxX, out var minY, out var maxY, out var minZ, out var maxZ);
+
+            result.Add(new LSL_Vector(minX, minY, minZ));
+            result.Add(new LSL_Vector(maxX, maxY, maxZ));
+            return result;
+        }
+
+
+        public LSL_Vector llGetGeometricCenter()
+        {
+            return new LSL_Vector(m_host.GetGeometricCenter());
+        }
+
+        public LSL_List llGetPrimitiveParams(LSL_List rules)
+        {
+            var result = new LSL_List();
+
+            var remaining = GetPrimParams(m_host, rules, ref result);
+
+            while (!(remaining is null) && remaining.Length > 1)
+            {
+                int linknumber = remaining.GetLSLIntegerItem(0);
+                rules = remaining.GetSublist(1, -1);
+                var parts = GetLinkParts(linknumber);
+                if (parts.Count == 0)
+                    break;
+                foreach (var part in parts)
+                    remaining = GetPrimParams(part, rules, ref result);
+            }
+
+            return result;
+        }
+
+        public LSL_List llGetLinkPrimitiveParams(int linknumber, LSL_List rules)
+        {
+            // according to SL wiki this must indicate a single link number or link_root or link_this.
+            // keep other options as before
+
+            List<SceneObjectPart> parts;
+            List<ScenePresence> avatars;
+
+            var res = new LSL_List();
+            var remaining = new LSL_List();
+
+            while (rules.Length > 0)
+            {
+                parts = GetLinkParts(linknumber);
+                avatars = GetLinkAvatars(linknumber);
+
+                remaining = new LSL_List();
+                foreach (var part in parts) remaining = GetPrimParams(part, rules, ref res);
+                foreach (var avatar in avatars) remaining = GetPrimParams(avatar, rules, ref res);
+
+                if (remaining.Length > 0)
+                {
+                    linknumber = remaining.GetLSLIntegerItem(0);
+                    rules = remaining.GetSublist(1, -1);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return res;
+        }
+
+        public LSL_List llGetPrimMediaParams(int face, LSL_List rules)
+        {
+            ScriptSleep(m_sleepMsOnGetPrimMediaParams);
+            return GetPrimMediaParams(m_host, face, rules);
+        }
+
+        public LSL_List llGetLinkMedia(LSL_Integer link, LSL_Integer face, LSL_List rules)
+        {
+            ScriptSleep(m_sleepMsOnGetLinkMedia);
+            if (link == ScriptBaseClass.LINK_ROOT) return GetPrimMediaParams(m_host.ParentGroup.RootPart, face, rules);
+
+            if (link == ScriptBaseClass.LINK_THIS) return GetPrimMediaParams(m_host, face, rules);
+
+            var part = m_host.ParentGroup.GetLinkNumPart(link);
+            if (null != part)
+                return GetPrimMediaParams(part, face, rules);
+
+            return new LSL_List();
+        }
+
+        public LSL_Integer llSetPrimMediaParams(LSL_Integer face, LSL_List rules)
+        {
+            ScriptSleep(m_sleepMsOnSetPrimMediaParams);
+            return SetPrimMediaParams(m_host, face, rules);
+        }
+
+        public LSL_Integer llSetLinkMedia(LSL_Integer link, LSL_Integer face, LSL_List rules)
+        {
+            ScriptSleep(m_sleepMsOnSetLinkMedia);
+            if (link == ScriptBaseClass.LINK_ROOT) return SetPrimMediaParams(m_host.ParentGroup.RootPart, face, rules);
+
+            if (link == ScriptBaseClass.LINK_THIS) return SetPrimMediaParams(m_host, face, rules);
+
+            var part = m_host.ParentGroup.GetLinkNumPart(link);
+            if (null != part)
+                return SetPrimMediaParams(part, face, rules);
+
+            return ScriptBaseClass.LSL_STATUS_NOT_FOUND;
+        }
+
+        public LSL_Integer llClearPrimMedia(LSL_Integer face)
+        {
+            ScriptSleep(m_sleepMsOnClearPrimMedia);
+            return ClearPrimMedia(m_host, face);
+        }
+
+        public LSL_Integer llClearLinkMedia(LSL_Integer link, LSL_Integer face)
+        {
+            ScriptSleep(m_sleepMsOnClearLinkMedia);
+            if (link == ScriptBaseClass.LINK_ROOT) return ClearPrimMedia(m_host.ParentGroup.RootPart, face);
+
+            if (link == ScriptBaseClass.LINK_THIS) return ClearPrimMedia(m_host, face);
+
+            var part = m_host.ParentGroup.GetLinkNumPart(link);
+            if (null != part)
+                return ClearPrimMedia(part, face);
+
+            return ScriptBaseClass.LSL_STATUS_NOT_FOUND;
+        }
+
+        public void llSetPayPrice(int price, LSL_List quick_pay_buttons)
+        {
+            if (m_host.LocalId != m_host.ParentGroup.RootPart.LocalId)
+                return;
+
+            if (quick_pay_buttons.Data.Length < 4)
+            {
+                int x;
+                for (x = quick_pay_buttons.Data.Length; x <= 4; x++) quick_pay_buttons.Add(ScriptBaseClass.PAY_HIDE);
+            }
+
+            var nPrice = new int[5];
+            nPrice[0] = price;
+            nPrice[1] = quick_pay_buttons.GetLSLIntegerItem(0);
+            nPrice[2] = quick_pay_buttons.GetLSLIntegerItem(1);
+            nPrice[3] = quick_pay_buttons.GetLSLIntegerItem(2);
+            nPrice[4] = quick_pay_buttons.GetLSLIntegerItem(3);
+            m_host.ParentGroup.RootPart.PayPrice = nPrice;
+            m_host.ParentGroup.HasGroupChanged = true;
+        }
+
+
+        public LSL_Integer llGetLinkNumberOfSides(LSL_Integer link)
+        {
+            var parts = GetLinkParts(link);
+            if (parts.Count < 1)
+                return 0;
+
+            return GetNumberOfSides(parts[0]);
         }
     }
 }

@@ -1,3 +1,30 @@
+/*
+ * Copyright (c) Contributors, http://opensimulator.org/
+ * See CONTRIBUTORS.TXT for a full list of copyright holders.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the OpenSimulator Project nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -10,9 +37,16 @@ using OpenSim.Region.ScriptEngine.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.ScriptBase;
 using OpenSim.Services.Connectors.Hypergrid;
-using PermissionMask = OpenMetaverse.PermissionMask;
+using LSL_Float = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLFloat;
+using LSL_Integer = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLInteger;
+using LSL_Key = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_List = OpenSim.Region.ScriptEngine.Shared.LSL_Types.list;
+using LSL_Rotation = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Quaternion;
+using LSL_String = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_Vector = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Vector3;
+using PermissionMask = OpenSim.Framework.PermissionMask;
 
-namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
+namespace OpenSim.Region.ScriptEngine.Shared.Api
 {
     public partial class LSL_Api : MarshalByRefObject, ILSL_Api, IScriptApi
     {
@@ -287,8 +321,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             ScriptSleep(m_sleepMsOnSetDamage);
         }
 
-        public void llTeleportAgent(string agent, string destination, LSL_Types.Vector3 targetPos,
-            LSL_Types.Vector3 targetLookAt)
+        public void llTeleportAgent(string agent, string destination, LSL_Vector targetPos,
+            LSL_Vector targetLookAt)
         {
             // If attached using llAttachToAvatarTemp, cowardly refuse
             if (m_host.ParentGroup.AttachmentPoint != 0 && m_host.ParentGroup.FromItemID.IsZero())
@@ -329,9 +363,9 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             }
         }
 
-        public void llTeleportAgentGlobalCoords(string agent, LSL_Types.Vector3 global_coords,
-            LSL_Types.Vector3 targetPos,
-            LSL_Types.Vector3 targetLookAt)
+        public void llTeleportAgentGlobalCoords(string agent, LSL_Vector global_coords,
+            LSL_Vector targetPos,
+            LSL_Vector targetLookAt)
         {
             // If attached using llAttachToAvatarTemp, cowardly refuse
             if (m_host.ParentGroup.AttachmentPoint != 0 && m_host.ParentGroup.FromItemID.IsZero())
@@ -392,7 +426,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             if (tm != null) tm.ModifyTerrain(m_host.OwnerID, m_host.AbsolutePosition, (byte)brush, (byte)action);
         }
 
-        public void llCollisionSound(LSL_Types.LSLString impact_sound, LSL_Types.LSLFloat impact_volume)
+        public void llCollisionSound(LSL_Key impact_sound, LSL_Float impact_volume)
         {
             if (string.IsNullOrEmpty(impact_sound.m_string))
             {
@@ -420,7 +454,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         }
 
 
-        public LSL_Types.LSLString llKey2Name(LSL_Types.LSLString id)
+        public LSL_Key llKey2Name(LSL_Key id)
         {
             if (UUID.TryParse(id, out var key) && key.IsNotZero())
             {
@@ -433,7 +467,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             return string.Empty;
         }
 
-        public LSL_Types.LSLString llName2Key(LSL_Types.LSLString name)
+        public LSL_Key llName2Key(LSL_Key name)
         {
             if (string.IsNullOrWhiteSpace(name))
                 return ScriptBaseClass.NULL_KEY;
@@ -459,7 +493,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             return ScriptBaseClass.NULL_KEY;
         }
 
-        public LSL_Types.LSLString llRequestUserKey(LSL_Types.LSLString username)
+        public LSL_Key llRequestUserKey(LSL_Key username)
         {
             if (string.IsNullOrWhiteSpace(username))
                 return ScriptBaseClass.NULL_KEY;
@@ -548,24 +582,24 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             return tid.ToString();
         }
 
-        public LSL_Types.LSLInteger llGetAttached()
+        public LSL_Integer llGetAttached()
         {
             return m_host.ParentGroup.AttachmentPoint;
         }
 
-        public LSL_Types.list llGetAttachedList(LSL_Types.LSLString id)
+        public LSL_List llGetAttachedList(LSL_Key id)
         {
             if (!UUID.TryParse(id, out var avID) || avID.IsZero())
-                return new LSL_Types.list("NOT_FOUND");
+                return new LSL_List("NOT_FOUND");
 
             var av = World.GetScenePresence(avID);
             if (av == null || av.IsDeleted)
-                return new LSL_Types.list("NOT_FOUND");
+                return new LSL_List("NOT_FOUND");
 
             if (av.IsChildAgent || av.IsInTransit)
-                return new LSL_Types.list("NOT_ON_REGION");
+                return new LSL_List("NOT_ON_REGION");
 
-            var AttachmentsList = new LSL_Types.list();
+            var AttachmentsList = new LSL_List();
             List<SceneObjectGroup> Attachments;
 
             Attachments = av.GetAttachments();
@@ -574,10 +608,57 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             {
                 if (Attachment.HasPrivateAttachmentPoint)
                     continue;
-                AttachmentsList.Add(new LSL_Types.LSLString(Attachment.UUID.ToString()));
+                AttachmentsList.Add(new LSL_Key(Attachment.UUID.ToString()));
             }
 
             return AttachmentsList;
+        }
+
+
+        public void llSetTouchText(string text)
+        {
+            if (text.Length <= 9)
+                m_host.TouchName = text;
+            else
+                m_host.TouchName = text.Substring(0, 9);
+        }
+
+        public void llSetSitText(string text)
+        {
+            if (text.Length <= 9)
+                m_host.SitName = text;
+            else
+                m_host.SitName = text.Substring(0, 9);
+        }
+
+        public void llForceMouselook(int mouselook)
+        {
+            m_host.SetForceMouselook(mouselook != 0);
+        }
+
+        public void llClearCameraParams()
+        {
+            // the object we are in
+            var objectID = m_host.ParentUUID;
+            if (objectID.IsZero())
+                return;
+
+            // we need the permission first, to know which avatar we want to clear the camera for
+            var agentID = m_item.PermsGranter;
+
+            if (agentID.IsZero())
+                return;
+
+            if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_CONTROL_CAMERA) == 0)
+                return;
+
+            var presence = World.GetScenePresence(agentID);
+
+            // we are not interested in child-agents
+            if (presence.IsChildAgent)
+                return;
+
+            presence.ControllingClient.SendClearFollowCamProperties(objectID);
         }
 
 
@@ -853,11 +934,11 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
                 if (presence == null)
                 {
-                    UserAccount account = m_userAccountService.GetUserAccount(RegionScopeID, destId);
+                    var account = m_userAccountService.GetUserAccount(RegionScopeID, destId);
 
                     if (account == null)
                     {
-                        GridUserInfo info = World.GridUserService.GetGridUserInfo(destId.ToString());
+                        var info = World.GridUserService.GetGridUserInfo(destId.ToString());
                         if (info == null || info.Online == false)
                         {
                             Error("llGiveInventory", "Can't find destination '" + destId + "'");
@@ -1171,6 +1252,280 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             }
 
             ScriptSleep(3000);
+        }
+
+
+        public void llSetCameraEyeOffset(LSL_Vector offset)
+        {
+            m_host.SetCameraEyeOffset(offset);
+
+            if (m_host.ParentGroup.RootPart.GetCameraEyeOffset().IsZero())
+                m_host.ParentGroup.RootPart.SetCameraEyeOffset(offset);
+        }
+
+        public void llSetCameraAtOffset(LSL_Vector offset)
+        {
+            m_host.SetCameraAtOffset(offset);
+
+            if (m_host.ParentGroup.RootPart.GetCameraAtOffset().IsZero())
+                m_host.ParentGroup.RootPart.SetCameraAtOffset(offset);
+        }
+
+        public void llSetLinkCamera(LSL_Integer link, LSL_Vector eye, LSL_Vector at)
+        {
+            if (link == ScriptBaseClass.LINK_SET ||
+                link == ScriptBaseClass.LINK_ALL_CHILDREN ||
+                link == ScriptBaseClass.LINK_ALL_OTHERS) return;
+
+            SceneObjectPart part = null;
+
+            switch (link)
+            {
+                case ScriptBaseClass.LINK_ROOT:
+                    part = m_host.ParentGroup.RootPart;
+                    break;
+                case ScriptBaseClass.LINK_THIS:
+                    part = m_host;
+                    break;
+                default:
+                    part = m_host.ParentGroup.GetLinkNumPart(link);
+                    break;
+            }
+
+            if (null != part)
+            {
+                part.SetCameraEyeOffset(eye);
+                part.SetCameraAtOffset(at);
+            }
+        }
+
+        public void llDialog(LSL_Key avatar, LSL_String message, LSL_List buttons, int chat_channel)
+        {
+            var dm = World.RequestModuleInterface<IDialogModule>();
+
+            if (dm == null)
+                return;
+
+            if (!UUID.TryParse(avatar, out var av) || av.IsZero())
+            {
+                Error("llDialog", "First parameter must be a valid key");
+                return;
+            }
+
+            if (!m_host.GetOwnerName(out var fname, out var lname))
+                return;
+
+            var length = buttons.Length;
+            if (length < 1)
+            {
+                buttons.Add(new LSL_String("Ok"));
+                length = 1;
+            }
+            else if (length > 12)
+            {
+                Error("llDialog", "No more than 12 buttons can be shown");
+                return;
+            }
+
+            if (message.Length == 0)
+                Error("llDialog", "Empty message");
+            else if (Encoding.UTF8.GetByteCount(message) > 512) Error("llDialog", "Message longer than 512 bytes");
+
+            var buts = new string[length];
+            for (var i = 0; i < length; i++)
+            {
+                buts[i] = buttons.Data[i].ToString();
+                if (buts[i].Length == 0)
+                {
+                    Error("llDialog", "Button label cannot be blank");
+                    return;
+                }
+
+/*
+                if (buttons.Data[i].ToString().Length > 24)
+                {
+                    Error("llDialog", "Button label cannot be longer than 24 characters");
+                    return;
+                }
+*/
+                buts[i] = buttons.Data[i].ToString();
+            }
+
+            dm.SendDialogToUser(
+                av, m_host.Name, m_host.UUID, m_host.OwnerID, fname, lname,
+                message, new UUID("00000000-0000-2222-3333-100000001000"), chat_channel, buts);
+
+            ScriptSleep(m_sleepMsOnDialog);
+        }
+
+        public LSL_Vector llGetCameraPos()
+        {
+            if (m_item.PermsGranter.IsZero())
+                return Vector3.Zero;
+
+            if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_TRACK_CAMERA) == 0)
+            {
+                Error("llGetCameraPos", "No permissions to track the camera");
+                return Vector3.Zero;
+            }
+
+//            ScenePresence presence = World.GetScenePresence(m_host.OwnerID);
+            var presence = World.GetScenePresence(m_item.PermsGranter);
+            if (presence != null)
+            {
+                var pos = new LSL_Vector(presence.CameraPosition);
+                return pos;
+            }
+
+            return Vector3.Zero;
+        }
+
+        public LSL_Rotation llGetCameraRot()
+        {
+            if (m_item.PermsGranter.IsZero())
+                return Quaternion.Identity;
+
+            if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_TRACK_CAMERA) == 0)
+            {
+                Error("llGetCameraRot", "No permissions to track the camera");
+                return Quaternion.Identity;
+            }
+
+//            ScenePresence presence = World.GetScenePresence(m_host.OwnerID);
+            var presence = World.GetScenePresence(m_item.PermsGranter);
+            if (presence != null) return new LSL_Rotation(presence.CameraRotation);
+
+            return Quaternion.Identity;
+        }
+
+
+        public void llSetCameraParams(LSL_List rules)
+        {
+            // the object we are in
+            var objectID = m_host.ParentUUID;
+            if (objectID.IsZero())
+                return;
+
+            // we need the permission first, to know which avatar we want to set the camera for
+            var agentID = m_item.PermsGranter;
+
+            if (agentID.IsZero())
+                return;
+
+            if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_CONTROL_CAMERA) == 0)
+                return;
+
+            var presence = World.GetScenePresence(agentID);
+
+            // we are not interested in child-agents
+            if (presence.IsChildAgent) return;
+
+            var parameters = new SortedDictionary<int, float>();
+            var data = rules.Data;
+            for (var i = 0; i < data.Length; ++i)
+            {
+                int type;
+                try
+                {
+                    type = Convert.ToInt32(data[i++].ToString());
+                }
+                catch
+                {
+                    Error("llSetCameraParams", string.Format("Invalid camera param type {0}", data[i - 1]));
+                    return;
+                }
+
+                if (i >= data.Length) break; // odd number of entries => ignore the last
+
+                // some special cases: Vector parameters are split into 3 float parameters (with type+1, type+2, type+3)
+                switch (type)
+                {
+                    case ScriptBaseClass.CAMERA_FOCUS:
+                    case ScriptBaseClass.CAMERA_FOCUS_OFFSET:
+                    case ScriptBaseClass.CAMERA_POSITION:
+                        var v = (LSL_Vector)data[i];
+                        try
+                        {
+                            parameters.Add(type + 1, (float)v.x);
+                        }
+                        catch
+                        {
+                            switch (type)
+                            {
+                                case ScriptBaseClass.CAMERA_FOCUS:
+                                    Error("llSetCameraParams", "CAMERA_FOCUS: Parameter x is invalid");
+                                    return;
+                                case ScriptBaseClass.CAMERA_FOCUS_OFFSET:
+                                    Error("llSetCameraParams", "CAMERA_FOCUS_OFFSET: Parameter x is invalid");
+                                    return;
+                                case ScriptBaseClass.CAMERA_POSITION:
+                                    Error("llSetCameraParams", "CAMERA_POSITION: Parameter x is invalid");
+                                    return;
+                            }
+                        }
+
+                        try
+                        {
+                            parameters.Add(type + 2, (float)v.y);
+                        }
+                        catch
+                        {
+                            switch (type)
+                            {
+                                case ScriptBaseClass.CAMERA_FOCUS:
+                                    Error("llSetCameraParams", "CAMERA_FOCUS: Parameter y is invalid");
+                                    return;
+                                case ScriptBaseClass.CAMERA_FOCUS_OFFSET:
+                                    Error("llSetCameraParams", "CAMERA_FOCUS_OFFSET: Parameter y is invalid");
+                                    return;
+                                case ScriptBaseClass.CAMERA_POSITION:
+                                    Error("llSetCameraParams", "CAMERA_POSITION: Parameter y is invalid");
+                                    return;
+                            }
+                        }
+
+                        try
+                        {
+                            parameters.Add(type + 3, (float)v.z);
+                        }
+                        catch
+                        {
+                            switch (type)
+                            {
+                                case ScriptBaseClass.CAMERA_FOCUS:
+                                    Error("llSetCameraParams", "CAMERA_FOCUS: Parameter z is invalid");
+                                    return;
+                                case ScriptBaseClass.CAMERA_FOCUS_OFFSET:
+                                    Error("llSetCameraParams", "CAMERA_FOCUS_OFFSET: Parameter z is invalid");
+                                    return;
+                                case ScriptBaseClass.CAMERA_POSITION:
+                                    Error("llSetCameraParams", "CAMERA_POSITION: Parameter z is invalid");
+                                    return;
+                            }
+                        }
+
+                        break;
+                    default:
+                        // TODO: clean that up as soon as the implicit casts are in
+                        if (data[i] is LSL_Float)
+                            parameters.Add(type, (float)((LSL_Float)data[i]).value);
+                        else if (data[i] is LSL_Integer)
+                            parameters.Add(type, ((LSL_Integer)data[i]).value);
+                        else
+                            try
+                            {
+                                parameters.Add(type, Convert.ToSingle(data[i]));
+                            }
+                            catch
+                            {
+                                Error("llSetCameraParams", string.Format("{0}: Parameter is invalid", type));
+                            }
+
+                        break;
+                }
+            }
+
+            if (parameters.Count > 0) presence.ControllingClient.SendSetFollowCamProperties(objectID, parameters);
         }
     }
 }

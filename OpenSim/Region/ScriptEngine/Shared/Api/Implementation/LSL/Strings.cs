@@ -1,11 +1,70 @@
+/*
+ * Copyright (c) Contributors, http://opensimulator.org/
+ * See CONTRIBUTORS.TXT for a full list of copyright holders.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the OpenSimulator Project nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 using System;
+using System.Security.Cryptography;
+using System.Text;
+using OpenSim.Framework;
 using OpenSim.Region.ScriptEngine.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
+using OpenSim.Region.ScriptEngine.Shared.ScriptBase;
+using LSL_Float = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLFloat;
+using LSL_Integer = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLInteger;
+using LSL_Key = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_List = OpenSim.Region.ScriptEngine.Shared.LSL_Types.list;
+using LSL_Rotation = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Quaternion;
+using LSL_String = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_Vector = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Vector3;
 
-namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
+namespace OpenSim.Region.ScriptEngine.Shared.Api
 {
     public partial class LSL_Api : MarshalByRefObject, ILSL_Api, IScriptApi
     {
+        public LSL_Key llMD5String(string src, int nonce)
+        {
+            return Util.Md5Hash(string.Format("{0}:{1}", src, nonce.ToString()), Encoding.UTF8);
+        }
+
+        public LSL_Key llSHA1String(string src)
+        {
+            return Util.SHA1Hash(src, Encoding.UTF8).ToLower();
+        }
+
+        public LSL_Key llSHA256String(LSL_Key input)
+        {
+            // Create a SHA256
+            using (var sha256Hash = SHA256.Create())
+            {
+                // ComputeHash - returns byte array
+                var bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(input));
+                return Util.bytesToHexString(bytes, true);
+            }
+        }
+
         /// <summary>
         ///     Return a portion of the designated string bounded by
         ///     inclusive indices (start and end). As usual, the negative
@@ -182,6 +241,89 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             if (string.IsNullOrEmpty(pattern))
                 return 0;
             return source.IndexOf(pattern);
+        }
+
+        public LSL_String llStringToBase64(string str)
+        {
+            try
+            {
+                byte[] encData_byte;
+                encData_byte = Util.UTF8.GetBytes(str);
+                var encodedData = Convert.ToBase64String(encData_byte);
+                return encodedData;
+            }
+            catch
+            {
+                Error("llBase64ToString", "Error encoding string");
+                return string.Empty;
+            }
+        }
+
+        public LSL_String llBase64ToString(string str)
+        {
+            try
+            {
+                var b = Convert.FromBase64String(str);
+                return Encoding.UTF8.GetString(b);
+            }
+            catch
+            {
+                Error("llBase64ToString", "Error decoding string");
+                return string.Empty;
+            }
+        }
+
+        public LSL_String llGetTimestamp()
+        {
+            return DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+        }
+
+        public LSL_String llEscapeURL(string url)
+        {
+            try
+            {
+                return Uri.EscapeDataString(url);
+            }
+            catch (Exception ex)
+            {
+                return "llEscapeURL: " + ex;
+            }
+        }
+
+        public LSL_String llUnescapeURL(string url)
+        {
+            try
+            {
+                return Uri.UnescapeDataString(url);
+            }
+            catch (Exception ex)
+            {
+                return "llUnescapeURL: " + ex;
+            }
+        }
+
+
+        public LSL_String llStringTrim(LSL_String src, LSL_Integer type)
+        {
+            if (type == ScriptBaseClass.STRING_TRIM_HEAD) return ((string)src).TrimStart();
+            if (type == ScriptBaseClass.STRING_TRIM_TAIL) return ((string)src).TrimEnd();
+            if (type == ScriptBaseClass.STRING_TRIM) return ((string)src).Trim();
+            return src;
+        }
+
+        public LSL_String llChar(LSL_Integer unicode)
+        {
+            if (unicode == 0)
+                return string.Empty;
+            try
+            {
+                return char.ConvertFromUtf32(unicode);
+            }
+            catch
+            {
+            }
+
+            return "\ufffd";
         }
     }
 }

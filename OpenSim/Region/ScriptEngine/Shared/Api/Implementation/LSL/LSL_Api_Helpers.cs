@@ -1,3 +1,30 @@
+/*
+ * Copyright (c) Contributors, http://opensimulator.org/
+ * See CONTRIBUTORS.TXT for a full list of copyright holders.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the OpenSimulator Project nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,14 +37,22 @@ using OpenMetaverse.Rendering;
 using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
+using OpenSim.Region.Framework.Scenes.Scripting;
 using OpenSim.Region.ScriptEngine.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.ScriptBase;
 using OpenSim.Services.Interfaces;
-using PermissionMask = OpenMetaverse.PermissionMask;
-using PresenceInfo = OpenSim.Region.Framework.Interfaces.PresenceInfo;
+using LSL_Float = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLFloat;
+using LSL_Integer = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLInteger;
+using LSL_Key = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_List = OpenSim.Region.ScriptEngine.Shared.LSL_Types.list;
+using LSL_Rotation = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Quaternion;
+using LSL_String = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_Vector = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Vector3;
+using PermissionMask = OpenSim.Framework.PermissionMask;
+using PresenceInfo = OpenSim.Services.Interfaces.PresenceInfo;
 
-namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
+namespace OpenSim.Region.ScriptEngine.Shared.Api
 {
     public partial class LSL_Api : MarshalByRefObject, ILSL_Api, IScriptApi
     {
@@ -68,7 +103,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         private const string b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
-        protected static List<Api.LSL_Api.CastRayCall> m_castRayCalls = new List<Api.LSL_Api.CastRayCall>();
+        protected static List<CastRayCall> m_castRayCalls = new List<CastRayCall>();
         protected static Dictionary<ulong, FacetedMesh> m_cachedMeshes = new Dictionary<ulong, FacetedMesh>();
 
         private static readonly Dictionary<string, string> MovementAnimationsForLSL =
@@ -503,6 +538,106 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         public void state(string newState)
         {
             m_ScriptEngine.SetState(m_item.ItemID, newState);
+        }
+
+
+        public void SetPrimitiveParamsEx(LSL_Key prim, LSL_List rules, string originFunc)
+        {
+            if (!UUID.TryParse(prim, out var id) || id.IsZero())
+                return;
+
+            var obj = World.GetSceneObjectPart(id);
+            if (obj == null)
+                return;
+
+            var sog = obj.ParentGroup;
+            if (sog == null || sog.IsDeleted)
+                return;
+
+            var objRoot = sog.RootPart;
+            if (objRoot == null || objRoot.OwnerID.NotEqual(m_host.OwnerID) ||
+                (objRoot.OwnerMask & (uint)PermissionMask.Modify) == 0)
+                return;
+
+            uint rulesParsed = 0;
+            var remaining = SetPrimParams(obj, rules, originFunc, ref rulesParsed);
+
+            while (remaining.Length > 2)
+            {
+                int linknumber;
+                try
+                {
+                    linknumber = remaining.GetLSLIntegerItem(0);
+                }
+                catch (InvalidCastException)
+                {
+                    Error(originFunc,
+                        string.Format("Error running rule #{0} -> PRIM_LINK_TARGET parameter must be integer",
+                            rulesParsed));
+                    return;
+                }
+
+                var entities = GetLinkEntities(obj, linknumber);
+                if (entities.Count == 0)
+                    break;
+
+                rules = remaining.GetSublist(1, -1);
+                foreach (var entity in entities)
+                    if (entity is SceneObjectPart)
+                        remaining = SetPrimParams((SceneObjectPart)entity, rules, originFunc, ref rulesParsed);
+                    else
+                        remaining = SetAgentParams((ScenePresence)entity, rules, originFunc, ref rulesParsed);
+            }
+        }
+
+        public LSL_List GetPrimitiveParamsEx(LSL_Key prim, LSL_List rules)
+        {
+            var result = new LSL_List();
+
+            if (!UUID.TryParse(prim, out var id))
+                return result;
+
+            var obj = World.GetSceneObjectPart(id);
+            if (obj == null)
+                return result;
+
+            var sog = obj.ParentGroup;
+            if (sog == null || sog.IsDeleted)
+                return result;
+
+            var objRoot = sog.RootPart;
+            if (objRoot == null || objRoot.OwnerID.NotEqual(m_host.OwnerID) ||
+                (objRoot.OwnerMask & (uint)PermissionMask.Modify) == 0)
+                return result;
+
+            var remaining = GetPrimParams(obj, rules, ref result);
+
+            while (remaining.Length > 1)
+            {
+                int linknumber;
+                try
+                {
+                    linknumber = remaining.GetLSLIntegerItem(0);
+                }
+                catch (InvalidCastException)
+                {
+                    Error("", "Error PRIM_LINK_TARGET: parameter must be integer");
+                    return result;
+                }
+
+                var entities = GetLinkEntities(obj, linknumber);
+                if (entities.Count == 0)
+                    break;
+
+                rules = remaining.GetSublist(1, -1);
+                foreach (var entity in entities)
+                    if (entity is SceneObjectPart)
+                        remaining = GetPrimParams((SceneObjectPart)entity, rules, ref result);
+                    else
+                        remaining = GetPrimParams((ScenePresence)entity, rules, ref result);
+            }
+
+            return result;
         }
 
         public void Initialize(IScriptEngine scriptEngine, SceneObjectPart host, TaskInventoryItem item)
@@ -1014,7 +1149,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             if (style == ScriptBaseClass.PRIM_TEXGEN_PLANAR)
                 textype = MappingType.Planar;
 
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
 
             if (face >= 0 && face < nsides)
             {
@@ -1040,7 +1175,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                 return;
 
             var tex = part.Shape.Textures;
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
 
             if (face >= 0 && face < nsides)
             {
@@ -1086,7 +1221,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                     break;
             }
 
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
 
             var tex = part.Shape.Textures;
             if (face >= 0 && face < nsides)
@@ -1118,7 +1253,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             if (part == null || part.ParentGroup == null || part.ParentGroup.IsDeleted)
                 return;
 
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
             var tex = part.Shape.Textures;
             if (face >= 0 && face < nsides)
             {
@@ -1141,7 +1276,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         protected LSL_Float GetAlpha(SceneObjectPart part, int face)
         {
             var tex = part.Shape.Textures;
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
             if (face == ScriptBaseClass.ALL_SIDES)
             {
                 int i;
@@ -1161,7 +1296,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                 return;
 
             var tex = part.Shape.Textures;
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
             Color4 texcolor;
 
             if (face >= 0 && face < nsides)
@@ -1316,17 +1451,17 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         private double VecDist(LSL_Vector a, LSL_Vector b)
         {
-            double dx = a.x - b.x;
-            double dy = a.y - b.y;
-            double dz = a.z - b.z;
+            var dx = a.x - b.x;
+            var dy = a.y - b.y;
+            var dz = a.z - b.z;
             return Math.Sqrt(dx * dx + dy * dy + dz * dz);
         }
 
         private double VecDistSquare(LSL_Vector a, LSL_Vector b)
         {
-            double dx = a.x - b.x;
-            double dy = a.y - b.y;
-            double dz = a.z - b.z;
+            var dx = a.x - b.x;
+            var dy = a.y - b.y;
+            var dz = a.z - b.z;
             return dx * dx + dy * dy + dz * dz;
         }
 
@@ -1335,8 +1470,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         {
             var tex = part.Shape.Textures;
             Color4 texcolor;
-            LSL_Vector rgb = new LSL_Vector();
-            int nsides = GetNumberOfSides(part);
+            var rgb = new LSL_Vector();
+            var nsides = GetNumberOfSides(part);
 
             if (face == ScriptBaseClass.ALL_SIDES)
             {
@@ -1392,7 +1527,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             }
 
             var tex = part.Shape.Textures;
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
 
             if (face >= 0 && face < nsides)
             {
@@ -1439,13 +1574,13 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             if (part == null || part.ParentGroup == null || part.ParentGroup.IsDeleted)
                 return;
 
-            UUID textureID = ScriptUtils.GetAssetIdFromItemName(m_host, texture, (int)AssetType.Texture);
+            var textureID = ScriptUtils.GetAssetIdFromItemName(m_host, texture, (int)AssetType.Texture);
             if (textureID.IsZero())
                 if (!UUID.TryParse(texture, out textureID) || textureID.IsZero())
                     return;
 
             var tex = part.Shape.Textures;
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
 
             if (face >= 0 && face < nsides)
             {
@@ -1472,7 +1607,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                 return;
 
             var tex = part.Shape.Textures;
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
 
             if (face >= 0 && face < nsides)
             {
@@ -1505,7 +1640,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                 return;
 
             var tex = part.Shape.Textures;
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
 
             if (face >= 0 && face < nsides)
             {
@@ -1538,7 +1673,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                 return;
 
             var tex = part.Shape.Textures;
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
 
             if (face >= 0 && face < nsides)
             {
@@ -1562,7 +1697,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         protected LSL_String GetTexture(SceneObjectPart part, int face)
         {
             var tex = part.Shape.Textures;
-            int nsides = GetNumberOfSides(part);
+            var nsides = GetNumberOfSides(part);
 
             if (face == ScriptBaseClass.ALL_SIDES) face = 0;
 
@@ -1635,18 +1770,18 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             if (grp == null || grp.IsDeleted || grp.inTransit)
                 return;
 
-            LSL_Vector currentPos = GetPartLocalPos(part);
-            LSL_Vector toPos = GetSetPosTarget(part, targetPos, currentPos, adjust);
+            var currentPos = GetPartLocalPos(part);
+            var toPos = GetSetPosTarget(part, targetPos, currentPos, adjust);
 
             if (part.IsRoot)
             {
-                if (!grp.IsAttachment && !World.Permissions.CanObjectEntry(grp, false, (Vector3)toPos))
+                if (!grp.IsAttachment && !World.Permissions.CanObjectEntry(grp, false, toPos))
                     return;
-                grp.UpdateGroupPosition((Vector3)toPos);
+                grp.UpdateGroupPosition(toPos);
             }
             else
             {
-                part.OffsetPosition = (Vector3)toPos;
+                part.OffsetPosition = toPos;
 //                SceneObjectGroup parent = part.ParentGroup;
 //                parent.HasGroupChanged = true;
 //                parent.ScheduleGroupForTerseUpdate();
@@ -1842,7 +1977,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         /// </summary>
         /// <param name='attachmentPoint'>
         ///     The attachment point (e.g.
-        ///     <see cref="OpenSim.Region.ScriptEngine.Shared.ScriptBase.ScriptBaseClass.ATTACH_CHEST">ATTACH_CHEST</see>)
+        ///     <see cref="ScriptBaseClass.ATTACH_CHEST">ATTACH_CHEST</see>)
         /// </param>
         /// <returns>true if the attach suceeded, false if it did not</returns>
         public bool AttachToAvatar(int attachmentPoint)

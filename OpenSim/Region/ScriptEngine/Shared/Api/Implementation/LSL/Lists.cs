@@ -1,3 +1,30 @@
+/*
+ * Copyright (c) Contributors, http://opensimulator.org/
+ * See CONTRIBUTORS.TXT for a full list of copyright holders.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the OpenSimulator Project nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -5,8 +32,15 @@ using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Region.ScriptEngine.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
+using LSL_Float = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLFloat;
+using LSL_Integer = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLInteger;
+using LSL_Key = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_List = OpenSim.Region.ScriptEngine.Shared.LSL_Types.list;
+using LSL_Rotation = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Quaternion;
+using LSL_String = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_Vector = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Vector3;
 
-namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
+namespace OpenSim.Region.ScriptEngine.Shared.Api
 {
     public partial class LSL_Api : MarshalByRefObject, ILSL_Api, IScriptApi
     {
@@ -536,6 +570,173 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         public LSL_List llParseString2List(string str, LSL_List separators, LSL_List in_spacers)
         {
             return ParseString2List(str, separators, in_spacers, false);
+        }
+
+
+        public LSL_String llDumpList2String(LSL_List src, string seperator)
+        {
+            if (src.Length == 0) return string.Empty;
+            var ret = string.Empty;
+            foreach (var o in src.Data) ret = ret + o + seperator;
+            ret = ret.Substring(0, ret.Length - seperator.Length);
+            return ret;
+        }
+
+        //  <summary>
+        //  Scan the string supplied in 'src' and
+        //  tokenize it based upon two sets of
+        //  tokenizers provided in two lists,
+        //  separators and spacers.
+        //  </summary>
+        //
+        //  <remarks>
+        //  Separators demarcate tokens and are
+        //  elided as they are encountered. Spacers
+        //  also demarcate tokens, but are themselves
+        //  retained as tokens.
+        //
+        //  Both separators and spacers may be arbitrarily
+        //  long strings. i.e. ":::".
+        //
+        //  The function returns an ordered list
+        //  representing the tokens found in the supplied
+        //  sources string. If two successive tokenizers
+        //  are encountered, then a null-string entry is
+        //  added to the list.
+        //
+        //  It is a precondition that the source and
+        //  toekizer lisst are non-null. If they are null,
+        //  then a null pointer exception will be thrown
+        //  while their lengths are being determined.
+        //
+        //  A small amount of working memoryis required
+        //  of approximately 8*#tokenizers + 8*srcstrlen.
+        //
+        //  There are many ways in which this function
+        //  can be implemented, this implementation is
+        //  fairly naive and assumes that when the
+        //  function is invooked with a short source
+        //  string and/or short lists of tokenizers, then
+        //  performance will not be an issue.
+        //
+        //  In order to minimize the perofrmance
+        //  effects of long strings, or large numbers
+        //  of tokeizers, the function skips as far as
+        //  possible whenever a toekenizer is found,
+        //  and eliminates redundant tokenizers as soon
+        //  as is possible.
+        //
+        //  The implementation tries to minimize temporary
+        //  garbage generation.
+        //  </remarks>
+
+        public LSL_List llParseStringKeepNulls(string src, LSL_List separators, LSL_List spacers)
+        {
+            return ParseString2List(src, separators, spacers, true);
+        }
+
+        /// <summary>
+        ///     llListReplaceList removes the sub-list defined by the inclusive indices
+        ///     start and end and inserts the src list in its place. The inclusive
+        ///     nature of the indices means that at least one element must be deleted
+        ///     if the indices are within the bounds of the existing list. I.e. 2,2
+        ///     will remove the element at index 2 and replace it with the source
+        ///     list. Both indices may be negative, with the usual interpretation. An
+        ///     interesting case is where end is lower than start. As these indices
+        ///     bound the list to be removed, then 0->end, and start->lim are removed
+        ///     and the source list is added as a suffix.
+        /// </summary>
+        public LSL_List llListReplaceList(LSL_List dest, LSL_List src, int start, int end)
+        {
+            LSL_List pref;
+
+
+            // Note that although we have normalized, both
+            // indices could still be negative.
+            if (start < 0) start = start + dest.Length;
+
+            if (end < 0) end = end + dest.Length;
+            // The comventional case, remove a sequence starting with
+            // start and ending with end. And then insert the source
+            // list.
+            if (start <= end)
+            {
+                // If greater than zero, then there is going to be a
+                // surviving prefix. Otherwise the inclusive nature
+                // of the indices mean that we're going to add the
+                // source list as a prefix.
+                if (start > 0)
+                {
+                    pref = dest.GetSublist(0, start - 1);
+                    // Only add a suffix if there is something
+                    // beyond the end index (it's inclusive too).
+                    if (end + 1 < dest.Length)
+                        return pref + src + dest.GetSublist(end + 1, -1);
+                    return pref + src;
+                }
+                // If start is less than or equal to zero, then
+                // the new list is simply a prefix. We still need to
+                // figure out any necessary surgery to the destination
+                // based upon end. Note that if end exceeds the upper
+                // bound in this case, the entire destination list
+                // is removed.
+
+                if (start == 0)
+                {
+                    if (end + 1 < dest.Length)
+                        return src + dest.GetSublist(end + 1, -1);
+                    return src;
+                }
+
+                // Start < 0
+                if (end + 1 < dest.Length)
+                    return dest.GetSublist(end + 1, -1);
+                return new LSL_List();
+            }
+            // Finally, if start > end, we strip away a prefix and
+            // a suffix, to leave the list that sits <between> ens
+            // and start, and then tag on the src list. AT least
+            // that's my interpretation. We can get sublist to do
+            // this for us. Note that one, or both of the indices
+            // might have been negative.
+
+            return dest.GetSublist(end + 1, start - 1) + src;
+        }
+
+        public LSL_String llReplaceSubString(LSL_String src, LSL_String pattern, LSL_String replacement, int count)
+        {
+            RegexOptions RegexOptions;
+            if (count < 0)
+            {
+                RegexOptions = RegexOptions.CultureInvariant | RegexOptions.RightToLeft;
+                count = -count;
+            }
+            else
+            {
+                RegexOptions = RegexOptions.CultureInvariant;
+                if (count == 0)
+                    count = -1;
+            }
+
+
+            try
+            {
+                if (string.IsNullOrEmpty(src.m_string))
+                    return src;
+
+                if (string.IsNullOrEmpty(pattern.m_string))
+                    return src;
+
+                var rx = new Regex(pattern, RegexOptions, new TimeSpan(500000)); // 50ms)
+                if (replacement == null)
+                    return rx.Replace(src.m_string, string.Empty, count);
+
+                return rx.Replace(src.m_string, replacement.m_string, count);
+            }
+            catch
+            {
+                return src;
+            }
         }
     }
 }

@@ -1,18 +1,84 @@
+/*
+ * Copyright (c) Contributors, http://opensimulator.org/
+ * See CONTRIBUTORS.TXT for a full list of copyright holders.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the OpenSimulator Project nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
 using OpenMetaverse;
+using OpenMetaverse.Assets;
+using OpenMetaverse.Rendering;
 using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
+using OpenSim.Region.Framework.Scenes;
+using OpenSim.Region.PhysicsModules.SharedBase;
 using OpenSim.Region.ScriptEngine.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.ScriptBase;
+using LSL_Float = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLFloat;
+using LSL_Integer = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLInteger;
+using LSL_Key = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_List = OpenSim.Region.ScriptEngine.Shared.LSL_Types.list;
+using LSL_Rotation = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Quaternion;
+using LSL_String = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_Vector = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Vector3;
 
-namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
+namespace OpenSim.Region.ScriptEngine.Shared.Api
 {
     public partial class LSL_Api : MarshalByRefObject, ILSL_Api, IScriptApi
     {
         public void llResetTime()
         {
             m_timer = Util.GetTimeStampMS();
+        }
+
+        public LSL_Float llGetObjectMass(LSL_Key id)
+        {
+            if (!UUID.TryParse(id, out var key) || key.IsZero())
+                return 0;
+
+            // return total object mass
+            var part = World.GetSceneObjectPart(key);
+            if (part != null)
+                return part.ParentGroup.GetMass();
+
+            // the object is null so the key is for an avatar
+            var avatar = World.GetScenePresence(key);
+            if (avatar != null)
+            {
+                if (avatar.IsChildAgent)
+                    // reference http://www.lslwiki.net/lslwiki/wakka.php?wakka=llGetObjectMass
+                    // child agents have a mass of 1.0
+                    return 1;
+                return avatar.GetMass();
+            }
+
+            return 0;
         }
 
         //These are the implementations of the various ll-functions used by the LSL scripts.
@@ -106,14 +172,14 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public LSL_Vector llRot2Euler(LSL_Rotation q1)
         {
-            LSL_Vector eul = new LSL_Vector();
+            var eul = new LSL_Vector();
 
-            double sqw = q1.s * q1.s;
-            double sqx = q1.x * q1.x;
-            double sqy = q1.z * q1.z;
-            double sqz = q1.y * q1.y;
+            var sqw = q1.s * q1.s;
+            var sqx = q1.x * q1.x;
+            var sqy = q1.z * q1.z;
+            var sqz = q1.y * q1.y;
             var unit = sqx + sqy + sqz + sqw; // if normalised is one, otherwise is correction factor
-            double test = q1.x * q1.z + q1.y * q1.s;
+            var test = q1.x * q1.z + q1.y * q1.s;
             if (test > 0.4999 * unit)
             {
                 // singularity at north pole
@@ -178,7 +244,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                     0.25 / s);
             }
 
-            double max = left.y > up.z ? left.y : up.z;
+            var max = left.y > up.z ? left.y : up.z;
 
             if (max < fwd.x)
             {
@@ -302,22 +368,22 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             b = llVecNorm(b);
 
             // Calculate axis and rotation angle
-            LSL_Vector axis = a % b;
-            LSL_Float cos_theta = a * b;
+            var axis = a % b;
+            var cos_theta = a * b;
 
             // Check if parallel
             if (cos_theta > 0.99999) return new LSL_Rotation(0.0f, 0.0f, 0.0f, 1.0f);
             // Check if anti-parallel
             if (cos_theta < -0.99999)
             {
-                LSL_Vector orthog_axis = new LSL_Vector(1.0, 0.0, 0.0) - a.x / (a * a) * a;
+                var orthog_axis = new LSL_Vector(1.0, 0.0, 0.0) - a.x / (a * a) * a;
                 if (LSL_Vector.MagSquare(orthog_axis) < 1e-12)
                     orthog_axis = new LSL_Vector(0.0, 0.0, 1.0);
                 return new LSL_Rotation((float)orthog_axis.x, (float)orthog_axis.y, (float)orthog_axis.z, 0.0);
             }
 
             // other rotation
-            LSL_Float theta = (LSL_Float)Math.Acos(cos_theta) * 0.5f;
+            var theta = (LSL_Float)Math.Acos(cos_theta) * 0.5f;
             axis = llVecNorm(axis);
             double x, y, z, s, t;
             s = Math.Cos(theta);
@@ -333,7 +399,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             var pos = m_host.GetWorldPosition() + (Vector3)offset;
 
             //Get the slope normal.  This gives us the equation of the plane tangent to the slope.
-            LSL_Vector vsn = llGroundNormal(offset);
+            var vsn = llGroundNormal(offset);
 
             // Clamp to valid position
             if (pos.X < 0)
@@ -375,7 +441,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public LSL_Vector llWind(LSL_Vector offset)
         {
-            LSL_Vector wind = new LSL_Vector(0, 0, 0);
+            var wind = new LSL_Vector(0, 0, 0);
             var module = World.RequestModuleInterface<IWindModule>();
             if (module != null)
             {
@@ -500,7 +566,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                 return 0;
             }
 
-            if (!UUID.TryParse(destination, out UUID toID))
+            if (!UUID.TryParse(destination, out var toID))
             {
                 Error("llGiveMoney", "Bad key in llGiveMoney");
                 return 0;
@@ -516,7 +582,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             Action<string> act = dontcare =>
             {
                 money.ObjectGiveMoney(m_host.ParentGroup.RootPart.UUID, m_host.ParentGroup.RootPart.OwnerID,
-                    toID, amount, UUID.Zero, out string reason);
+                    toID, amount, UUID.Zero, out var reason);
             };
 
             m_AsyncCommands.DataserverPlugin.RegisterRequest(m_host.LocalId, m_item.ItemID, act);
@@ -633,6 +699,1072 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         public LSL_Vector llGetCenterOfMass()
         {
             return new LSL_Vector(m_host.GetCenterOfMass());
+        }
+
+
+        public LSL_Float llLog10(double val)
+        {
+            return Math.Log10(val);
+        }
+
+        public LSL_Float llLog(double val)
+        {
+            return Math.Log(val);
+        }
+
+        //  <summary>
+        //  Converts a 32-bit integer into a Base64
+        //  character string. Base64 character strings
+        //  are always 8 characters long. All iinteger
+        //  values are acceptable.
+        //  </summary>
+        //  <param name="number">
+        //  32-bit integer to be converted.
+        //  </param>
+        //  <returns>
+        //  8 character string. The 1st six characters
+        //  contain the encoded number, the last two
+        //  characters are padded with "=".
+        //  </returns>
+
+        public LSL_String llIntegerToBase64(int number)
+        {
+            // uninitialized string
+
+            var imdt = new char[8];
+
+
+            // Manually unroll the loop
+
+            imdt[7] = '=';
+            imdt[6] = '=';
+            imdt[5] = i2ctable[(number << 4) & 0x3F];
+            imdt[4] = i2ctable[(number >> 2) & 0x3F];
+            imdt[3] = i2ctable[(number >> 8) & 0x3F];
+            imdt[2] = i2ctable[(number >> 14) & 0x3F];
+            imdt[1] = i2ctable[(number >> 20) & 0x3F];
+            imdt[0] = i2ctable[(number >> 26) & 0x3F];
+
+            return new string(imdt);
+        }
+
+        //  <summary>
+        //  Converts an eight character base-64 string
+        //  into a 32-bit integer.
+        //  </summary>
+        //  <param name="str">
+        //  8 characters string to be converted. Other
+        //  length strings return zero.
+        //  </param>
+        //  <returns>
+        //  Returns an integer representing the
+        //  encoded value providedint he 1st 6
+        //  characters of the string.
+        //  </returns>
+        //  <remarks>
+        //  This is coded to behave like LSL's
+        //  implementation (I think), based upon the
+        //  information available at the Wiki.
+        //  If more than 8 characters are supplied,
+        //  zero is returned.
+        //  If a NULL string is supplied, zero will
+        //  be returned.
+        //  If fewer than 6 characters are supplied, then
+        //  the answer will reflect a partial
+        //  accumulation.
+        //  <para>
+        //  The 6-bit segments are
+        //  extracted left-to-right in big-endian mode,
+        //  which means that segment 6 only contains the
+        //  two low-order bits of the 32 bit integer as
+        //  its high order 2 bits. A short string therefore
+        //  means loss of low-order information. E.g.
+        //
+        //  |<---------------------- 32-bit integer ----------------------->|<-Pad->|
+        //  |<--Byte 0----->|<--Byte 1----->|<--Byte 2----->|<--Byte 3----->|<-Pad->|
+        //  |3|3|2|2|2|2|2|2|2|2|2|2|1|1|1|1|1|1|1|1|1|1| | | | | | | | | | |P|P|P|P|
+        //  |1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|P|P|P|P|
+        //  |  str[0]   |  str[1]   |  str[2]   |  str[3]   |  str[4]   |  str[6]   |
+        //
+        //  </para>
+        //  </remarks>
+
+        public LSL_Integer llBase64ToInteger(string str)
+        {
+            var number = 0;
+            int digit;
+
+
+            //    Require a well-fromed base64 string
+
+            if (str.Length > 8)
+                return 0;
+
+            //    The loop is unrolled in the interests
+            //    of performance and simple necessity.
+            //
+            //    MUST find 6 digits to be well formed
+            //      -1 == invalid
+            //       0 == padding
+
+            if ((digit = c2itable[str[0]]) <= 0) return digit < 0 ? 0 : number;
+            number += --digit << 26;
+
+            if ((digit = c2itable[str[1]]) <= 0) return digit < 0 ? 0 : number;
+            number += --digit << 20;
+
+            if ((digit = c2itable[str[2]]) <= 0) return digit < 0 ? 0 : number;
+            number += --digit << 14;
+
+            if ((digit = c2itable[str[3]]) <= 0) return digit < 0 ? 0 : number;
+            number += --digit << 8;
+
+            if ((digit = c2itable[str[4]]) <= 0) return digit < 0 ? 0 : number;
+            number += --digit << 2;
+
+            if ((digit = c2itable[str[5]]) <= 0) return digit < 0 ? 0 : number;
+            number += --digit >> 4;
+
+            // ignore trailing padding
+
+            return number;
+        }
+
+        public LSL_Float llGetGMTclock()
+        {
+            return DateTime.UtcNow.TimeOfDay.TotalSeconds;
+        }
+
+
+        public LSL_Integer llModPow(int a, int b, int c)
+        {
+            Math.DivRem((long)Math.Pow(a, b), c, out var tmp);
+            ScriptSleep(m_sleepMsOnModPow);
+            return (int)tmp;
+        }
+
+        public LSL_String llXorBase64Strings(string str1, string str2)
+        {
+            var padding = 0;
+
+            ScriptSleep(300);
+
+            if (str1.Length == 0)
+                return string.Empty;
+            if (str2.Length == 0)
+                return str1;
+
+            var len = str2.Length;
+            if (len % 4 != 0) // LL is EVIL!!!!
+            {
+                while (str2.EndsWith("="))
+                    str2 = str2.Substring(0, str2.Length - 1);
+
+                len = str2.Length;
+                var mod = len % 4;
+
+                if (mod == 1)
+                    str2 = str2.Substring(0, str2.Length - 1);
+                else if (mod == 2)
+                    str2 += "==";
+                else if (mod == 3)
+                    str2 += "=";
+            }
+
+            byte[] data1;
+            byte[] data2;
+            try
+            {
+                data1 = Convert.FromBase64String(str1);
+                data2 = Convert.FromBase64String(str2);
+            }
+            catch
+            {
+                return string.Empty;
+            }
+
+            // Remove padding
+            while (str1.EndsWith("="))
+            {
+                str1 = str1.Substring(0, str1.Length - 1);
+                padding++;
+            }
+
+            while (str2.EndsWith("="))
+                str2 = str2.Substring(0, str2.Length - 1);
+
+            var d1 = new byte[str1.Length];
+            var d2 = new byte[str2.Length];
+
+            for (var i = 0; i < str1.Length; i++)
+            {
+                var idx = b64.IndexOf(str1.Substring(i, 1));
+                if (idx == -1)
+                    idx = 0;
+                d1[i] = (byte)idx;
+            }
+
+            for (var i = 0; i < str2.Length; i++)
+            {
+                var idx = b64.IndexOf(str2.Substring(i, 1));
+                if (idx == -1)
+                    idx = 0;
+                d2[i] = (byte)idx;
+            }
+
+            var output = string.Empty;
+
+            for (var pos = 0; pos < d1.Length; pos++)
+                output += b64[d1[pos] ^ d2[pos % d2.Length]];
+
+            // Here's a funny thing: LL blithely violate the base64
+            // standard pretty much everywhere. Here, padding is
+            // added only if the first input string had it, rather
+            // than when the data actually needs it. This can result
+            // in invalid base64 being returned. Go figure.
+
+            while (padding-- > 0)
+                output += "=";
+
+            return output;
+        }
+
+        public LSL_String llXorBase64StringsCorrect(string str1, string str2)
+        {
+            if (str1.Length == 0)
+                return string.Empty;
+            if (str2.Length == 0)
+                return str1;
+
+            var len = str2.Length;
+            if (len % 4 != 0) // LL is EVIL!!!!
+            {
+                str2.TrimEnd('=');
+
+                len = str2.Length;
+                if (len == 0)
+                    return str1;
+
+                var mod = len % 4;
+
+                if (mod == 1)
+                    str2 = str2.Substring(0, len - 1);
+                else if (mod == 2)
+                    str2 += "==";
+                else if (mod == 3)
+                    str2 += "=";
+            }
+
+            byte[] data1;
+            byte[] data2;
+            try
+            {
+                data1 = Convert.FromBase64String(str1);
+                data2 = Convert.FromBase64String(str2);
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
+
+            var len2 = data2.Length;
+            if (len2 == 0)
+                return str1;
+
+            for (int pos = 0, pos2 = 0; pos < data1.Length; pos++)
+            {
+                data1[pos] ^= data2[pos2];
+                if (++pos2 >= len2)
+                    pos2 = 0;
+            }
+
+            return Convert.ToBase64String(data1);
+        }
+
+        public LSL_String llXorBase64(string str1, string str2)
+        {
+            if (string.IsNullOrEmpty(str2))
+                return str1;
+
+            str1 = truncateBase64(str1);
+            if (string.IsNullOrEmpty(str1))
+                return string.Empty;
+
+            str2 = truncateBase64(str2);
+            if (string.IsNullOrEmpty(str2))
+                return str1;
+
+            byte[] data1;
+            byte[] data2;
+            try
+            {
+                data1 = Convert.FromBase64String(str1);
+                data2 = Convert.FromBase64String(str2);
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
+
+            var len2 = data2.Length;
+            if (len2 == 0)
+                return str1;
+
+            for (int pos = 0, pos2 = 0; pos < data1.Length; pos++)
+            {
+                data1[pos] ^= data2[pos2];
+                if (++pos2 >= len2)
+                    pos2 = 0;
+            }
+
+            return Convert.ToBase64String(data1);
+        }
+
+        public LSL_List llCastRay(LSL_Vector start, LSL_Vector end, LSL_List options)
+        {
+            var list = new LSL_List();
+
+            Vector3 rayStart = start;
+            Vector3 rayEnd = end;
+            var dir = rayEnd - rayStart;
+
+            var dist = dir.LengthSquared();
+            if (dist < 1e-6)
+            {
+                list.Add(new LSL_Integer(0));
+                return list;
+            }
+
+            var count = 1;
+            var detectPhantom = false;
+            var dataFlags = 0;
+            var rejectTypes = 0;
+
+            for (var i = 0; i < options.Length; i += 2)
+                if (options.GetLSLIntegerItem(i) == ScriptBaseClass.RC_MAX_HITS)
+                    count = options.GetLSLIntegerItem(i + 1);
+                else if (options.GetLSLIntegerItem(i) == ScriptBaseClass.RC_DETECT_PHANTOM)
+                    detectPhantom = options.GetLSLIntegerItem(i + 1) > 0;
+                else if (options.GetLSLIntegerItem(i) == ScriptBaseClass.RC_DATA_FLAGS)
+                    dataFlags = options.GetLSLIntegerItem(i + 1);
+                else if (options.GetLSLIntegerItem(i) == ScriptBaseClass.RC_REJECT_TYPES)
+                    rejectTypes = options.GetLSLIntegerItem(i + 1);
+
+            if (count > 16)
+                count = 16;
+
+            var results = new List<ContactResult>();
+
+            bool checkTerrain = (rejectTypes & ScriptBaseClass.RC_REJECT_LAND) == 0;
+            bool checkAgents = (rejectTypes & ScriptBaseClass.RC_REJECT_AGENTS) == 0;
+            bool checkNonPhysical = (rejectTypes & ScriptBaseClass.RC_REJECT_NONPHYSICAL) == 0;
+            bool checkPhysical = (rejectTypes & ScriptBaseClass.RC_REJECT_PHYSICAL) == 0;
+            bool rejectHost = (rejectTypes & ScriptBaseClass.RC_REJECT_HOST) != 0;
+            bool rejectHostGroup = (rejectTypes & ScriptBaseClass.RC_REJECT_HOSTGROUP) != 0;
+
+            if (World.SupportsRayCastFiltered())
+            {
+                RayFilterFlags rayfilter = 0;
+                if (checkTerrain)
+                    rayfilter = RayFilterFlags.land;
+                if (checkAgents)
+                    rayfilter |= RayFilterFlags.agent;
+                if (checkPhysical)
+                    rayfilter |= RayFilterFlags.physical;
+                if (checkNonPhysical)
+                    rayfilter |= RayFilterFlags.nonphysical;
+                if (detectPhantom)
+                    rayfilter |= RayFilterFlags.LSLPhantom;
+
+                if (rayfilter == 0)
+                {
+                    list.Add(new LSL_Integer(0));
+                    return list;
+                }
+
+                rayfilter |= RayFilterFlags.BackFaceCull;
+
+                dist = (float)Math.Sqrt(dist);
+                var direction = dir * (1.0f / dist);
+
+                // get some more contacts to sort ???
+                var physresults = World.RayCastFiltered(rayStart, direction, dist, 2 * count, rayfilter);
+
+                if (physresults != null) results = (List<ContactResult>)physresults;
+
+                // for now physics doesn't detect sitted avatars so do it outside physics
+                if (checkAgents)
+                {
+                    var agentHits = AvatarIntersection(rayStart, rayEnd, true);
+                    foreach (var r in agentHits)
+                        results.Add(r);
+                }
+
+                // TODO: Replace this with a better solution. ObjectIntersection can only
+                // detect nonphysical phantoms. They are detected by virtue of being
+                // nonphysical (e.g. no PhysActor) so will not conflict with detecting
+                // physicsl phantoms as done by the physics scene
+                // We don't want anything else but phantoms here.
+                if (detectPhantom)
+                {
+                    var objectHits = ObjectIntersection(rayStart, rayEnd, false, false, true);
+                    foreach (var r in objectHits)
+                        results.Add(r);
+                }
+
+                // Double check this because of current ODE distance problems
+                if (checkTerrain && dist > 60)
+                {
+                    var skipGroundCheck = false;
+
+                    foreach (var c in results)
+                        if (c.ConsumerID == 0) // Physics gave us a ground collision
+                            skipGroundCheck = true;
+
+                    if (!skipGroundCheck)
+                    {
+                        var tmp = dir.X * dir.X + dir.Y * dir.Y;
+                        if (tmp > 2500)
+                        {
+                            var groundContact = GroundIntersection(rayStart, rayEnd);
+                            if (groundContact != null)
+                                results.Add((ContactResult)groundContact);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (checkAgents)
+                {
+                    var agentHits = AvatarIntersection(rayStart, rayEnd, false);
+                    foreach (var r in agentHits)
+                        results.Add(r);
+                }
+
+                if (checkPhysical || checkNonPhysical || detectPhantom)
+                {
+                    var objectHits =
+                        ObjectIntersection(rayStart, rayEnd, checkPhysical, checkNonPhysical, detectPhantom);
+                    for (var iter = 0; iter < objectHits.Length; iter++)
+                    {
+                        // Redistance the Depth because the Scene RayCaster returns distance from center to make the rezzing code simpler.
+                        objectHits[iter].Depth = Vector3.Distance(objectHits[iter].Pos, rayStart);
+                        results.Add(objectHits[iter]);
+                    }
+                }
+
+                if (checkTerrain)
+                {
+                    var groundContact = GroundIntersection(rayStart, rayEnd);
+                    if (groundContact != null)
+                        results.Add((ContactResult)groundContact);
+                }
+            }
+
+            results.Sort(delegate(ContactResult a, ContactResult b) { return a.Depth.CompareTo(b.Depth); });
+
+            var values = 0;
+            var thisgrp = m_host.ParentGroup;
+
+            foreach (var result in results)
+            {
+                if (result.Depth > dist)
+                    continue;
+
+                // physics ray can return colisions with host prim
+                if (rejectHost && m_host.LocalId == result.ConsumerID)
+                    continue;
+
+                var itemID = UUID.Zero;
+                var linkNum = 0;
+
+                var part = World.GetSceneObjectPart(result.ConsumerID);
+                // It's a prim!
+                if (part != null)
+                {
+                    if (rejectHostGroup && part.ParentGroup == thisgrp)
+                        continue;
+
+                    if ((dataFlags & ScriptBaseClass.RC_GET_ROOT_KEY) == ScriptBaseClass.RC_GET_ROOT_KEY)
+                        itemID = part.ParentGroup.UUID;
+                    else
+                        itemID = part.UUID;
+
+                    linkNum = part.LinkNum;
+                }
+                else
+                {
+                    var sp = World.GetScenePresence(result.ConsumerID);
+                    /// It it a boy? a girl?
+                    if (sp != null)
+                        itemID = sp.UUID;
+                }
+
+                list.Add(new LSL_String(itemID.ToString()));
+                list.Add(new LSL_String(result.Pos.ToString()));
+
+                if ((dataFlags & ScriptBaseClass.RC_GET_LINK_NUM) == ScriptBaseClass.RC_GET_LINK_NUM)
+                    list.Add(new LSL_Integer(linkNum));
+
+                if ((dataFlags & ScriptBaseClass.RC_GET_NORMAL) == ScriptBaseClass.RC_GET_NORMAL)
+                    list.Add(new LSL_Vector(result.Normal));
+
+                values++;
+                if (values >= count)
+                    break;
+            }
+
+            list.Add(new LSL_Integer(values));
+            return list;
+        }
+
+        public LSL_Integer llOrd(LSL_String s, LSL_Integer index)
+        {
+            if (string.IsNullOrEmpty(s))
+                return 0;
+
+            if (index < 0)
+                index += s.Length;
+
+            if (index < 0 || index >= s.Length)
+                return 0;
+
+            var c = s.m_string[index];
+            if (c >= 0xdc00 && c <= 0xdfff)
+            {
+                --index;
+                if (index < 0)
+                    return 0;
+
+                var a = c - 0xdc00;
+                c = s.m_string[index];
+                if (c < 0xd800 || c > 0xdbff)
+                    return 0;
+                c -= (char)(0xd800 - 0x40);
+                return a + (c << 10);
+            }
+
+            if (c >= 0xd800)
+            {
+                if (c < 0xdc00)
+                {
+                    ++index;
+                    if (index >= s.Length)
+                        return 0;
+
+                    c -= (char)(0xd800 - 0x40);
+                    var a = c << 10;
+
+                    c = s.m_string[index];
+                    if (c < 0xdc00 || c > 0xdfff)
+                        return 0;
+                    c -= (char)0xdc00;
+                    return a + c;
+                }
+
+                if (c < 0xe000) return 0;
+            }
+
+            return (int)c;
+        }
+
+        public LSL_Integer llHash(LSL_String s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return 0;
+            var hash = 0;
+            char c;
+            for (var i = 0; i < s.Length; ++i)
+            {
+                hash *= 65599;
+                // on modern intel/amd this is faster than the tradicional optimization:
+                // hash = (hash << 6) + (hash << 16) - hash;
+                c = s.m_string[i];
+                if (c >= 0xd800)
+                {
+                    if (c < 0xdc00)
+                    {
+                        ++i;
+                        if (i >= s.Length)
+                            return 0;
+
+                        c -= (char)(0xd800 - 0x40);
+                        hash += c << 10;
+
+                        c = s.m_string[i];
+                        if (c < 0xdc00 || c > 0xdfff)
+                            return 0;
+                        c -= (char)0xdc00;
+                    }
+                    else if (c < 0xe000)
+                    {
+                        return 0;
+                    }
+                }
+
+                hash += c;
+            }
+
+            return hash;
+        }
+
+
+        /// <summary>
+        ///     Implementation of llCastRay similar to SL 2015-04-21.
+        ///     http://wiki.secondlife.com/wiki/LlCastRay
+        ///     Uses pure geometry, bounding shapes, meshing and no physics
+        ///     for prims, sculpts, meshes, avatars and terrain.
+        ///     Implements all flags, reject types and data flags.
+        ///     Can handle both objects/groups and prims/parts, by config.
+        ///     May sometimes be inaccurate owing to calculation precision,
+        ///     meshing detail level and a bug in libopenmetaverse PrimMesher.
+        /// </summary>
+        public LSL_List llCastRayV3(LSL_Vector start, LSL_Vector end, LSL_List options)
+        {
+            var result = new LSL_List();
+
+            // Prepare throttle data
+            var calledMs = Environment.TickCount;
+            var stopWatch = new Stopwatch();
+            stopWatch.Start();
+            var regionId = World.RegionInfo.RegionID;
+            var userId = UUID.Zero;
+            var msAvailable = 0;
+            // Throttle per owner when attachment or "vehicle" (sat upon)
+            if (m_host.ParentGroup.IsAttachment || m_host.ParentGroup.GetSittingAvatarsCount() > 0)
+            {
+                userId = m_host.OwnerID;
+                msAvailable = m_msPerAvatarInCastRay;
+            }
+            // Throttle per parcel when not attachment or vehicle
+            else
+            {
+                var land = World.GetLandData(m_host.GetWorldPosition());
+                if (land != null)
+                    msAvailable = m_msPerRegionInCastRay * land.Area / 65536;
+            }
+
+            // Clamp for "oversized" parcels on varregions
+            if (msAvailable > m_msMaxInCastRay)
+                msAvailable = m_msMaxInCastRay;
+
+            // Check throttle data
+            var fromCalledMs = calledMs - m_msThrottleInCastRay;
+            lock (m_castRayCalls)
+            {
+                for (var i = m_castRayCalls.Count - 1; i >= 0; i--)
+                    // Delete old calls from throttle data
+                    if (m_castRayCalls[i].CalledMs < fromCalledMs)
+                        m_castRayCalls.RemoveAt(i);
+                    // Use current region (in multi-region sims)
+                    else if (m_castRayCalls[i].RegionId.Equals(regionId))
+                        // Reduce available time with recent calls
+                        if (m_castRayCalls[i].UserId.Equals(userId))
+                            msAvailable -= m_castRayCalls[i].UsedMs;
+
+                // Return failure if not enough available time
+                if (msAvailable < m_msMinInCastRay)
+                {
+                    result.Add(new LSL_Integer(ScriptBaseClass.RCERR_CAST_TIME_EXCEEDED));
+                    return result;
+                }
+            }
+
+            // Initialize
+            var rayHits = new List<RayHit>();
+            var tol = m_floatToleranceInCastRay;
+            Vector3 pos1Ray = start;
+            Vector3 pos2Ray = end;
+
+            // Get input options
+            var rejectTypes = 0;
+            var dataFlags = 0;
+            var maxHits = 1;
+            var notdetectPhantom = true;
+            for (var i = 0; i < options.Length; i += 2)
+                if (options.GetLSLIntegerItem(i) == ScriptBaseClass.RC_REJECT_TYPES)
+                    rejectTypes = options.GetLSLIntegerItem(i + 1);
+                else if (options.GetLSLIntegerItem(i) == ScriptBaseClass.RC_DATA_FLAGS)
+                    dataFlags = options.GetLSLIntegerItem(i + 1);
+                else if (options.GetLSLIntegerItem(i) == ScriptBaseClass.RC_MAX_HITS)
+                    maxHits = options.GetLSLIntegerItem(i + 1);
+                else if (options.GetLSLIntegerItem(i) == ScriptBaseClass.RC_DETECT_PHANTOM)
+                    notdetectPhantom = options.GetLSLIntegerItem(i + 1) == 0;
+            if (maxHits > m_maxHitsInCastRay)
+                maxHits = m_maxHitsInCastRay;
+            bool rejectAgents = (rejectTypes & ScriptBaseClass.RC_REJECT_AGENTS) != 0;
+            bool rejectPhysical = (rejectTypes & ScriptBaseClass.RC_REJECT_PHYSICAL) != 0;
+            bool rejectNonphysical = (rejectTypes & ScriptBaseClass.RC_REJECT_NONPHYSICAL) != 0;
+            bool rejectLand = (rejectTypes & ScriptBaseClass.RC_REJECT_LAND) != 0;
+            bool getNormal = (dataFlags & ScriptBaseClass.RC_GET_NORMAL) != 0;
+            bool getRootKey = (dataFlags & ScriptBaseClass.RC_GET_ROOT_KEY) != 0;
+            bool getLinkNum = (dataFlags & ScriptBaseClass.RC_GET_LINK_NUM) != 0;
+
+            // Calculate some basic parameters
+            var vecRay = pos2Ray - pos1Ray;
+            var rayLength = vecRay.Length();
+
+            // Try to get a mesher and return failure if none, degenerate ray, or max 0 hits
+            IRendering primMesher = null;
+            var renderers = RenderingLoader.ListRenderers(Util.ExecutingDirectory());
+            if (renderers.Count < 1 || rayLength < tol || m_maxHitsInCastRay < 1)
+            {
+                result.Add(new LSL_Integer(ScriptBaseClass.RCERR_UNKNOWN));
+                return result;
+            }
+
+            primMesher = RenderingLoader.LoadRenderer(renderers[0]);
+
+            // Iterate over all objects/groups and prims/parts in region
+            World.ForEachSOG(
+                delegate(SceneObjectGroup group)
+                {
+                    if (group.IsDeleted || group.RootPart == null)
+                        return;
+                    // Check group filters unless part filters are configured
+                    var isPhysical = group.RootPart.PhysActor != null && group.RootPart.PhysActor.IsPhysical;
+                    var isNonphysical = !isPhysical;
+                    var isPhantom = group.IsPhantom || group.IsVolumeDetect;
+                    var isAttachment = group.IsAttachment;
+                    if (isPhysical && rejectPhysical)
+                        return;
+                    if (isNonphysical && rejectNonphysical)
+                        return;
+                    if (isPhantom && notdetectPhantom)
+                        return;
+                    if (isAttachment && !m_doAttachmentsInCastRay)
+                        return;
+
+                    // Parse object/group if passed filters
+                    // Iterate over all prims/parts in object/group
+                    foreach (var part in group.Parts)
+                    {
+                        // ignore PhysicsShapeType.None as physics engines do
+                        // or we will get into trouble in future
+                        if (part.PhysicsShapeType == (byte)PhysicsShapeType.None)
+                            continue;
+                        isPhysical = part.PhysActor != null && part.PhysActor.IsPhysical;
+                        isNonphysical = !isPhysical;
+                        isPhantom = (part.Flags & PrimFlags.Phantom) != 0 ||
+                                    part.VolumeDetectActive;
+
+                        if (isPhysical && rejectPhysical)
+                            continue;
+                        if (isNonphysical && rejectNonphysical)
+                            continue;
+                        if (isPhantom && notdetectPhantom)
+                            continue;
+
+                        // Parse prim/part and project ray if passed filters
+                        var scalePart = part.Scale;
+                        var posPart = part.GetWorldPosition();
+                        var rotPart = part.GetWorldRotation();
+                        var rotPartInv = Quaternion.Inverse(rotPart);
+                        var pos1RayProj = (pos1Ray - posPart) * rotPartInv / scalePart;
+                        var pos2RayProj = (pos2Ray - posPart) * rotPartInv / scalePart;
+
+                        // Filter parts by shape bounding boxes
+                        var shapeBoxMax = new Vector3(0.5f, 0.5f, 0.5f);
+                        if (!part.Shape.SculptEntry)
+                            shapeBoxMax = shapeBoxMax * new Vector3(m_primSafetyCoeffX, m_primSafetyCoeffY,
+                                m_primSafetyCoeffZ);
+                        shapeBoxMax = shapeBoxMax + new Vector3(tol, tol, tol);
+                        if (RayIntersectsShapeBox(pos1RayProj, pos2RayProj, shapeBoxMax))
+                        {
+                            // Prepare data needed to check for ray hits
+                            var rayTrans = new RayTrans
+                            {
+                                PartId = part.UUID,
+                                GroupId = part.ParentGroup.UUID,
+                                Link = group.PrimCount > 1 ? part.LinkNum : 0,
+                                ScalePart = scalePart,
+                                PositionPart = posPart,
+                                RotationPart = rotPart,
+                                ShapeNeedsEnds = true,
+                                Position1Ray = pos1Ray,
+                                Position1RayProj = pos1RayProj,
+                                VectorRayProj = pos2RayProj - pos1RayProj
+                            };
+
+                            // Get detail level depending on type
+                            var lod = 0;
+                            // Mesh detail level
+                            if (part.Shape.SculptEntry && part.Shape.SculptType == (byte)SculptType.Mesh)
+                                lod = (int)m_meshLodInCastRay;
+                            // Sculpt detail level
+                            else if (part.Shape.SculptEntry && part.Shape.SculptType == (byte)SculptType.Mesh)
+                                lod = (int)m_sculptLodInCastRay;
+                            // Shape detail level
+                            else if (!part.Shape.SculptEntry)
+                                lod = (int)m_primLodInCastRay;
+
+                            // Try to get cached mesh if configured
+                            ulong meshKey = 0;
+                            FacetedMesh mesh = null;
+                            if (m_useMeshCacheInCastRay)
+                            {
+                                meshKey = part.Shape.GetMeshKey(Vector3.One, 4 << lod);
+                                lock (m_cachedMeshes)
+                                {
+                                    m_cachedMeshes.TryGetValue(meshKey, out mesh);
+                                }
+                            }
+
+                            // Create mesh if no cached mesh
+                            if (mesh == null)
+                            {
+                                // Make an OMV prim to be able to mesh part
+                                var omvPrim = part.Shape.ToOmvPrimitive(posPart, rotPart);
+                                byte[] sculptAsset = null;
+                                if (omvPrim.Sculpt != null)
+                                    sculptAsset = World.AssetService.GetData(omvPrim.Sculpt.SculptTexture.ToString());
+
+                                // When part is mesh, get mesh
+                                if (omvPrim.Sculpt != null && omvPrim.Sculpt.Type == SculptType.Mesh &&
+                                    sculptAsset != null)
+                                {
+                                    var meshAsset = new AssetMesh(omvPrim.Sculpt.SculptTexture, sculptAsset);
+                                    FacetedMesh.TryDecodeFromAsset(omvPrim, meshAsset, m_meshLodInCastRay, out mesh);
+                                    meshAsset = null;
+                                }
+
+                                // When part is sculpt, create mesh
+                                // Quirk: Generated sculpt mesh is about 2.8% smaller in X and Y than visual sculpt.
+                                else if (omvPrim.Sculpt != null && omvPrim.Sculpt.Type != SculptType.Mesh &&
+                                         sculptAsset != null)
+                                {
+                                    var imgDecoder = World.RequestModuleInterface<IJ2KDecoder>();
+                                    if (imgDecoder != null)
+                                    {
+                                        var sculpt = imgDecoder.DecodeToImage(sculptAsset);
+                                        if (sculpt != null)
+                                        {
+                                            mesh = primMesher.GenerateFacetedSculptMesh(omvPrim, (Bitmap)sculpt,
+                                                m_sculptLodInCastRay);
+                                            sculpt.Dispose();
+                                        }
+                                    }
+                                }
+
+                                // When part is shape, create mesh
+                                else if (omvPrim.Sculpt == null)
+                                {
+                                    if (
+                                        omvPrim.PrimData.PathBegin == 0.0 && omvPrim.PrimData.PathEnd == 1.0 &&
+                                        omvPrim.PrimData.PathTaperX == 0.0 && omvPrim.PrimData.PathTaperY == 0.0 &&
+                                        omvPrim.PrimData.PathSkew == 0.0 &&
+                                        omvPrim.PrimData.PathTwist - omvPrim.PrimData.PathTwistBegin == 0.0
+                                    )
+                                        rayTrans.ShapeNeedsEnds = false;
+                                    mesh = primMesher.GenerateFacetedMesh(omvPrim, m_primLodInCastRay);
+                                }
+
+                                // Cache mesh if configured
+                                if (m_useMeshCacheInCastRay && mesh != null)
+                                    lock (m_cachedMeshes)
+                                    {
+                                        if (!m_cachedMeshes.ContainsKey(meshKey))
+                                            m_cachedMeshes.Add(meshKey, mesh);
+                                    }
+                            }
+
+                            // Check mesh for ray hits
+                            AddRayInFacetedMesh(mesh, rayTrans, ref rayHits);
+                            mesh = null;
+                        }
+                    }
+                }
+            );
+
+            // Check avatar filter
+            if (!rejectAgents)
+                // Iterate over all avatars in region
+                World.ForEachRootScenePresence(
+                    delegate(ScenePresence sp)
+                    {
+                        // Get bounding box
+                        BoundingBoxOfScenePresence(sp, out var lower, out var upper);
+                        // Parse avatar
+                        var scalePart = upper - lower;
+                        var posPart = sp.AbsolutePosition;
+                        var rotPart = sp.GetWorldRotation();
+                        var rotPartInv = Quaternion.Inverse(rotPart);
+                        posPart = posPart + (lower + upper) * 0.5f * rotPart;
+                        // Project ray
+                        var pos1RayProj = (pos1Ray - posPart) * rotPartInv / scalePart;
+                        var pos2RayProj = (pos2Ray - posPart) * rotPartInv / scalePart;
+
+                        // Filter avatars by shape bounding boxes
+                        var shapeBoxMax = new Vector3(0.5f + tol, 0.5f + tol, 0.5f + tol);
+                        if (RayIntersectsShapeBox(pos1RayProj, pos2RayProj, shapeBoxMax))
+                        {
+                            // Prepare data needed to check for ray hits
+                            var rayTrans = new RayTrans
+                            {
+                                PartId = sp.UUID,
+                                GroupId = sp.ParentPart != null ? sp.ParentPart.ParentGroup.UUID : sp.UUID,
+                                Link = sp.ParentPart != null ? UUID2LinkNumber(sp.ParentPart, sp.UUID) : 0,
+                                ScalePart = scalePart,
+                                PositionPart = posPart,
+                                RotationPart = rotPart,
+                                ShapeNeedsEnds = false,
+                                Position1Ray = pos1Ray,
+                                Position1RayProj = pos1RayProj,
+                                VectorRayProj = pos2RayProj - pos1RayProj
+                            };
+
+                            // Try to get cached mesh if configured
+                            var prim = PrimitiveBaseShape.CreateSphere();
+                            var lod = (int)m_avatarLodInCastRay;
+                            var meshKey = prim.GetMeshKey(Vector3.One, 4 << lod);
+                            FacetedMesh mesh = null;
+                            if (m_useMeshCacheInCastRay)
+                                lock (m_cachedMeshes)
+                                {
+                                    m_cachedMeshes.TryGetValue(meshKey, out mesh);
+                                }
+
+                            // Create mesh if no cached mesh
+                            if (mesh == null)
+                            {
+                                // Make OMV prim and create mesh
+                                prim.Scale = scalePart;
+                                var omvPrim = prim.ToOmvPrimitive(posPart, rotPart);
+                                mesh = primMesher.GenerateFacetedMesh(omvPrim, m_avatarLodInCastRay);
+
+                                // Cache mesh if configured
+                                if (m_useMeshCacheInCastRay && mesh != null)
+                                    lock (m_cachedMeshes)
+                                    {
+                                        if (!m_cachedMeshes.ContainsKey(meshKey))
+                                            m_cachedMeshes.Add(meshKey, mesh);
+                                    }
+                            }
+
+                            // Check mesh for ray hits
+                            AddRayInFacetedMesh(mesh, rayTrans, ref rayHits);
+                            mesh = null;
+                        }
+                    }
+                );
+
+            // Check terrain filter
+            if (!rejectLand)
+            {
+                // Parse terrain
+
+                // Mesh terrain and check bounding box
+                var triangles = TrisFromHeightmapUnderRay(pos1Ray, pos2Ray, out var lower, out var upper);
+                lower.Z -= tol;
+                upper.Z += tol;
+                if ((pos1Ray.Z >= lower.Z || pos2Ray.Z >= lower.Z) && (pos1Ray.Z <= upper.Z || pos2Ray.Z <= upper.Z))
+                {
+                    // Prepare data needed to check for ray hits
+                    var rayTrans = new RayTrans
+                    {
+                        PartId = UUID.Zero,
+                        GroupId = UUID.Zero,
+                        Link = 0,
+                        ScalePart = new Vector3(1.0f, 1.0f, 1.0f),
+                        PositionPart = Vector3.Zero,
+                        RotationPart = Quaternion.Identity,
+                        ShapeNeedsEnds = true,
+                        Position1Ray = pos1Ray,
+                        Position1RayProj = pos1Ray,
+                        VectorRayProj = vecRay
+                    };
+
+                    // Check mesh
+                    AddRayInTris(triangles, rayTrans, ref rayHits);
+                    triangles = null;
+                }
+            }
+
+            // Sort hits by ascending distance
+            rayHits.Sort((s1, s2) => s1.Distance.CompareTo(s2.Distance));
+
+            // Check excess hits per part and group
+            for (var t = 0; t < 2; t++)
+            {
+                var maxHitsPerType = 0;
+                var id = UUID.Zero;
+                if (t == 0)
+                    maxHitsPerType = m_maxHitsPerPrimInCastRay;
+                else
+                    maxHitsPerType = m_maxHitsPerObjectInCastRay;
+
+                // Handle excess hits only when needed
+                if (maxHitsPerType < m_maxHitsInCastRay)
+                {
+                    // Find excess hits
+                    var hits = new Hashtable();
+                    for (var i = rayHits.Count - 1; i >= 0; i--)
+                    {
+                        if (t == 0)
+                            id = rayHits[i].PartId;
+                        else
+                            id = rayHits[i].GroupId;
+                        if (hits.ContainsKey(id))
+                            hits[id] = (int)hits[id] + 1;
+                        else
+                            hits[id] = 1;
+                    }
+
+                    // Remove excess hits
+                    for (var i = rayHits.Count - 1; i >= 0; i--)
+                    {
+                        if (t == 0)
+                            id = rayHits[i].PartId;
+                        else
+                            id = rayHits[i].GroupId;
+                        var hit = (int)hits[id];
+                        if (hit > m_maxHitsPerPrimInCastRay)
+                        {
+                            rayHits.RemoveAt(i);
+                            hit--;
+                            hits[id] = hit;
+                        }
+                    }
+                }
+            }
+
+            // Parse hits into result list according to data flags
+            var hitCount = rayHits.Count;
+            if (hitCount > maxHits)
+                hitCount = maxHits;
+            for (var i = 0; i < hitCount; i++)
+            {
+                var rayHit = rayHits[i];
+                if (getRootKey)
+                    result.Add(new LSL_Key(rayHit.GroupId.ToString()));
+                else
+                    result.Add(new LSL_Key(rayHit.PartId.ToString()));
+                result.Add(new LSL_Vector(rayHit.Position));
+                if (getLinkNum)
+                    result.Add(new LSL_Integer(rayHit.Link));
+                if (getNormal)
+                    result.Add(new LSL_Vector(rayHit.Normal));
+            }
+
+            result.Add(new LSL_Integer(hitCount));
+
+            // Add to throttle data
+            stopWatch.Stop();
+            lock (m_castRayCalls)
+            {
+                var castRayCall = new CastRayCall
+                {
+                    RegionId = regionId,
+                    UserId = userId,
+                    CalledMs = calledMs,
+                    UsedMs = (int)stopWatch.ElapsedMilliseconds
+                };
+                m_castRayCalls.Add(castRayCall);
+            }
+
+            // Return hits
+            return result;
         }
     }
 }

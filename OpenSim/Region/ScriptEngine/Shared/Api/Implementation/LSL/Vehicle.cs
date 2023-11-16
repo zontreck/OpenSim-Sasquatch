@@ -40,16 +40,40 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
 {
     public partial class LSL_Api : MarshalByRefObject, ILSL_Api, IScriptApi
     {
-        public void llLinkParticleSystem(int linknumber, LSL_List rules)
+        public void llSetVehicleType(int type)
         {
-            var parts = GetLinkParts(linknumber);
-
-            foreach (var part in parts) SetParticleSystem(part, rules, "llLinkParticleSystem");
+            if (!m_host.ParentGroup.IsDeleted) m_host.ParentGroup.RootPart.SetVehicleType(type);
         }
 
-        public void llParticleSystem(LSL_List rules)
+        public void llSetVehicleFlags(int flags)
         {
-            SetParticleSystem(m_host, rules, "llParticleSystem");
+            if (!m_host.ParentGroup.IsDeleted) m_host.ParentGroup.RootPart.SetVehicleFlags(flags, false);
+        }
+
+        public void llRemoveVehicleFlags(int flags)
+        {
+            if (!m_host.ParentGroup.IsDeleted) m_host.ParentGroup.RootPart.SetVehicleFlags(flags, true);
+        }
+
+        //CFK 9/28: Most, but not all of the underlying plumbing between here and the physics modules is in
+        //CFK 9/28: so these are not complete yet.
+        public void llSetVehicleFloatParam(int param, LSL_Float value)
+        {
+            if (!m_host.ParentGroup.IsDeleted) m_host.ParentGroup.RootPart.SetVehicleFloatParam(param, (float)value);
+        }
+
+        //CFK 9/28: Most, but not all of the underlying plumbing between here and the physics modules is in
+        //CFK 9/28: so these are not complete yet.
+        public void llSetVehicleVectorParam(int param, LSL_Vector vec)
+        {
+            if (!m_host.ParentGroup.IsDeleted) m_host.ParentGroup.RootPart.SetVehicleVectorParam(param, vec);
+        }
+
+        //CFK 9/28: Most, but not all of the underlying plumbing between here and the physics modules is in
+        //CFK 9/28: so these are not complete yet.
+        public void llSetVehicleRotationParam(int param, LSL_Rotation rot)
+        {
+            if (!m_host.ParentGroup.IsDeleted) m_host.ParentGroup.RootPart.SetVehicleRotationParam(param, rot);
         }
     }
 }

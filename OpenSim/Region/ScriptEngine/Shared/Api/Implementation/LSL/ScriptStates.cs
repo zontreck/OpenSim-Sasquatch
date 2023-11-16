@@ -1,11 +1,45 @@
+/*
+ * Copyright (c) Contributors, http://opensimulator.org/
+ * See CONTRIBUTORS.TXT for a full list of copyright holders.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the OpenSimulator Project nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 using System;
 using System.Diagnostics;
 using OpenMetaverse;
 using OpenSim.Region.ScriptEngine.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared.ScriptBase;
+using LSL_Float = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLFloat;
+using LSL_Integer = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLInteger;
+using LSL_Key = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_List = OpenSim.Region.ScriptEngine.Shared.LSL_Types.list;
+using LSL_Rotation = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Quaternion;
+using LSL_String = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString;
+using LSL_Vector = OpenSim.Region.ScriptEngine.Shared.LSL_Types.Vector3;
 
-namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
+namespace OpenSim.Region.ScriptEngine.Shared.Api
 {
     public partial class LSL_Api : MarshalByRefObject, ILSL_Api, IScriptApi
     {
@@ -26,7 +60,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public void llResetOtherScript(string name)
         {
-            UUID item = GetScriptByName(name);
+            var item = GetScriptByName(name);
 
             if (item.IsZero())
             {
@@ -42,7 +76,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public void llSetScriptState(string name, int run)
         {
-            UUID item = GetScriptByName(name);
+            var item = GetScriptByName(name);
 
 
             // These functions are supposed to be robust,
@@ -87,8 +121,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
                     object[] resobj =
                     {
-                        new LSL_Types.LSLInteger(linkNumber), new LSL_Types.LSLInteger(num),
-                        new LSL_Types.LSLString(msg), new LSL_Types.LSLString(id)
+                        new LSL_Integer(linkNumber), new LSL_Integer(num),
+                        new LSL_Key(msg), new LSL_Key(id)
                     };
 
                     m_ScriptEngine.PostScriptEvent(partItemID,
@@ -100,7 +134,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
 
         public LSL_Integer llGetScriptState(string name)
         {
-            UUID item = GetScriptByName(name);
+            var item = GetScriptByName(name);
 
             if (!item.IsZero()) return m_ScriptEngine.GetScriptState(item) ? 1 : 0;
 
