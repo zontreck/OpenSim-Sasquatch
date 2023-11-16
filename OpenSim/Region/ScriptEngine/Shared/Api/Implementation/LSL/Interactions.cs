@@ -1,0 +1,211 @@
+using System;
+using System.Diagnostics;
+using OpenMetaverse;
+using OpenSim.Region.Framework.Interfaces;
+using OpenSim.Region.Framework.Scenes;
+using OpenSim.Region.ScriptEngine.Interfaces;
+using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
+using OpenSim.Region.ScriptEngine.Shared.ScriptBase;
+
+namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
+{
+    public partial class LSL_Api: MarshalByRefObject, ILSL_Api, IScriptApi
+    {
+        
+
+        public LSL_Integer llListen(int channelID, string name, string ID, string msg)
+        {
+            IWorldComm wComm = m_ScriptEngine.World.RequestModuleInterface<IWorldComm>();
+            if (wComm == null)
+                return -1;
+
+            UUID.TryParse(ID, out UUID keyID);
+            return wComm.Listen(m_item.ItemID, m_host.UUID, channelID, name, keyID, msg);
+        }
+
+        public void llListenControl(int number, int active)
+        {
+            IWorldComm wComm = m_ScriptEngine.World.RequestModuleInterface<IWorldComm>();
+            if (wComm != null)
+                wComm.ListenControl(m_item.ItemID, number, active);
+        }
+
+        public void llListenRemove(int number)
+        {
+            IWorldComm wComm = m_ScriptEngine.World.RequestModuleInterface<IWorldComm>();
+            if (wComm != null)
+                wComm.ListenRemove(m_item.ItemID, number);
+        }
+        
+        
+
+        public void llSensor(string name, string id, int type, double range, double arc)
+        {
+            UUID.TryParse(id, out UUID keyID);
+            m_AsyncCommands.SensorRepeatPlugin.SenseOnce(m_host.LocalId, m_item.ItemID, name, keyID, type, range, arc, m_host);
+       }
+
+        public void llSensorRepeat(string name, string id, int type, double range, double arc, double rate)
+        {
+            UUID.TryParse(id, out UUID keyID);
+            m_AsyncCommands.SensorRepeatPlugin.SetSenseRepeatEvent(m_host.LocalId, m_item.ItemID, name, keyID, type, range, arc, rate, m_host);
+        }
+
+        public void llSensorRemove()
+        {
+            m_AsyncCommands.SensorRepeatPlugin.UnSetSenseRepeaterEvents(m_host.LocalId, m_item.ItemID);
+        }
+
+        public LSL_String llDetectedName(int number)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, number);
+            if (detectedParams == null)
+                return String.Empty;
+            return detectedParams.Name;
+        }
+
+        public LSL_Key llDetectedKey(int number)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, number);
+            if (detectedParams == null)
+                return String.Empty;
+            return detectedParams.Key.ToString();
+        }
+
+        public LSL_Key llDetectedOwner(int number)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, number);
+            if (detectedParams == null)
+                return String.Empty;
+            return detectedParams.Owner.ToString();
+        }
+
+        public LSL_Integer llDetectedType(int number)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, number);
+            if (detectedParams == null)
+                return 0;
+            return new LSL_Integer(detectedParams.Type);
+        }
+
+        public LSL_Vector llDetectedPos(int number)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, number);
+            if (detectedParams == null)
+                return new LSL_Vector();
+            return detectedParams.Position;
+        }
+
+        public LSL_Vector llDetectedVel(int number)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, number);
+            if (detectedParams == null)
+                return new LSL_Vector();
+            return detectedParams.Velocity;
+        }
+
+        public LSL_Vector llDetectedGrab(int number)
+        {
+            DetectParams parms = m_ScriptEngine.GetDetectParams(m_item.ItemID, number);
+            if (parms == null)
+                return new LSL_Vector(0, 0, 0);
+
+            return parms.OffsetPos;
+        }
+
+        public LSL_Rotation llDetectedRot(int number)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, number);
+            if (detectedParams == null)
+                return new LSL_Rotation();
+            return detectedParams.Rotation;
+        }
+
+        public LSL_Integer llDetectedGroup(int number)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, number);
+            if (detectedParams == null)
+                return new LSL_Integer(0);
+            if (m_host.GroupID.Equals(detectedParams.Group))
+                return new LSL_Integer(1);
+            return new LSL_Integer(0);
+        }
+
+        public LSL_Integer llDetectedLinkNumber(int number)
+        {
+            DetectParams parms = m_ScriptEngine.GetDetectParams(m_item.ItemID, number);
+            if (parms == null)
+                return new LSL_Integer(0);
+
+            return new LSL_Integer(parms.LinkNum);
+        }
+
+        /// <summary>
+        /// See http://wiki.secondlife.com/wiki/LlDetectedTouchBinormal for details
+        /// </summary>
+        public LSL_Vector llDetectedTouchBinormal(int index)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, index);
+            if (detectedParams == null)
+                return new LSL_Vector();
+            return detectedParams.TouchBinormal;
+        }
+
+        /// <summary>
+        /// See http://wiki.secondlife.com/wiki/LlDetectedTouchFace for details
+        /// </summary>
+        public LSL_Integer llDetectedTouchFace(int index)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, index);
+            if (detectedParams == null)
+                return new LSL_Integer(-1);
+            return new LSL_Integer(detectedParams.TouchFace);
+        }
+
+        /// <summary>
+        /// See http://wiki.secondlife.com/wiki/LlDetectedTouchNormal for details
+        /// </summary>
+        public LSL_Vector llDetectedTouchNormal(int index)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, index);
+            if (detectedParams == null)
+                return new LSL_Vector();
+            return detectedParams.TouchNormal;
+        }
+
+        /// <summary>
+        /// See http://wiki.secondlife.com/wiki/LlDetectedTouchPos for details
+        /// </summary>
+        public LSL_Vector llDetectedTouchPos(int index)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, index);
+            if (detectedParams == null)
+                return new LSL_Vector();
+            return detectedParams.TouchPos;
+        }
+
+        /// <summary>
+        /// See http://wiki.secondlife.com/wiki/LlDetectedTouchST for details
+        /// </summary>
+        public LSL_Vector llDetectedTouchST(int index)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, index);
+            if (detectedParams == null)
+                return new LSL_Vector(-1.0, -1.0, 0.0);
+            return detectedParams.TouchST;
+        }
+
+        /// <summary>
+        /// See http://wiki.secondlife.com/wiki/LlDetectedTouchUV for details
+        /// </summary>
+        public LSL_Vector llDetectedTouchUV(int index)
+        {
+            DetectParams detectedParams = m_ScriptEngine.GetDetectParams(m_item.ItemID, index);
+            if (detectedParams == null)
+                return new LSL_Vector(-1.0, -1.0, 0.0);
+            return detectedParams.TouchUV;
+        }
+        
+        
+    }
+}
