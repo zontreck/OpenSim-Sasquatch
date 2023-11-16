@@ -84,5 +84,13 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                     break;
             }
         }
+        
+        
+        public void llReleaseURL(string url)
+        {
+            if (m_UrlModule != null)
+                m_UrlModule.ReleaseURL(url);
+        }
+
     }
 }

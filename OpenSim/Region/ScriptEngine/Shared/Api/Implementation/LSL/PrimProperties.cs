@@ -554,5 +554,12 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         {
             m_host.ParentGroup.StopMoveToTarget();
         }
+        
+        public LSL_Key llGetOwner()
+        {
+
+            return m_host.OwnerID.ToString();
+        }
+
     }
 }

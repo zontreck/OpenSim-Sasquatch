@@ -207,5 +207,123 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
         }
         
         
+        public void llTakeControls(int controls, int accept, int pass_on)
+        {
+            if (!m_item.PermsGranter.IsZero())
+            {
+                ScenePresence presence = World.GetScenePresence(m_item.PermsGranter);
+
+                if (presence != null)
+                {
+                    if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_TAKE_CONTROLS) != 0)
+                    {
+                        presence.RegisterControlEventsToScript(controls, accept, pass_on, m_host.LocalId, m_item.ItemID);
+                    }
+                }
+            }
+
+        }
+
+        public void llReleaseControls()
+        {
+
+            if (!m_item.PermsGranter.IsZero())
+            {
+                ScenePresence presence = World.GetScenePresence(m_item.PermsGranter);
+
+                if (presence != null)
+                {
+                    if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_TAKE_CONTROLS) != 0)
+                    {
+                        // Unregister controls from Presence
+                        presence.UnRegisterControlEventsToScript(m_host.LocalId, m_item.ItemID);
+                        // Remove Take Control permission.
+                        m_item.PermsMask &= ~ScriptBaseClass.PERMISSION_TAKE_CONTROLS;
+                    }
+                }
+            }
+        }
+
+        public void llAttachToAvatar(LSL_Integer attachmentPoint)
+        {
+
+            if (m_item.PermsGranter != m_host.OwnerID)
+                return;
+
+            SceneObjectGroup grp = m_host.ParentGroup;
+            if (grp == null || grp.IsDeleted || grp.IsAttachment)
+                return;
+
+            if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_ATTACH) != 0)
+                AttachToAvatar(attachmentPoint);
+        }
+
+        public void llAttachToAvatarTemp(LSL_Integer attachmentPoint)
+        {
+            IAttachmentsModule attachmentsModule = World.RequestModuleInterface<IAttachmentsModule>();
+            if (attachmentsModule == null)
+                return;
+
+            if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_ATTACH) == 0)
+                return;
+
+            SceneObjectGroup grp = m_host.ParentGroup;
+            if (grp == null || grp.IsDeleted || grp.IsAttachment)
+                return;
+
+            if (!World.TryGetScenePresence(m_item.PermsGranter, out ScenePresence target))
+                return;
+
+            if (target.UUID != grp.OwnerID)
+            {
+                uint effectivePerms = grp.EffectiveOwnerPerms;
+
+                if ((effectivePerms & (uint)PermissionMask.Transfer) == 0)
+                    return;
+
+                UUID permsgranter = m_item.PermsGranter;
+                int permsmask = m_item.PermsMask;
+
+                grp.SetOwner(target.UUID, target.ControllingClient.ActiveGroupId);
+
+                if (World.Permissions.PropagatePermissions())
+                {
+                    foreach (SceneObjectPart child in grp.Parts)
+                    {
+                        child.Inventory.ChangeInventoryOwner(target.UUID);
+                        child.TriggerScriptChangedEvent(Changed.OWNER);
+                        child.ApplyNextOwnerPermissions();
+                    }
+                    grp.InvalidateEffectivePerms();
+                }
+
+                m_item.PermsMask = permsmask;
+                m_item.PermsGranter = permsgranter;
+
+                grp.RootPart.ObjectSaleType = 0;
+                grp.RootPart.SalePrice = 10;
+
+                grp.HasGroupChanged = true;
+                grp.RootPart.SendPropertiesToClient(target.ControllingClient);
+                grp.RootPart.ScheduleFullUpdate();
+            }
+
+            attachmentsModule.AttachObject(target, grp, (uint)attachmentPoint, false, false, true);
+        }
+
+    public void llDetachFromAvatar()
+        {
+
+            if (m_host.ParentGroup.AttachmentPoint == 0)
+                return;
+
+            if (m_item.PermsGranter != m_host.OwnerID)
+                return;
+
+            if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_ATTACH) != 0)
+                DetachFromAvatar();
+        }
+
+
     }
 }

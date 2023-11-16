@@ -77,5 +77,23 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
                 Error("llSetScriptState", "Can't find script '" + name + "'");
             }
         }
+        
+        
+
+        public void llSetTimerEvent(double sec)
+        {
+            if (sec != 0.0 && sec < m_MinTimerInterval)
+                sec = m_MinTimerInterval;
+            // Setting timer repeat
+            m_AsyncCommands.TimerPlugin.SetTimerEvent(m_host.LocalId, m_item.ItemID, sec);
+        }
+
+        public virtual void llSleep(double sec)
+        {
+//            m_log.Info("llSleep snoozing " + sec + "s.");
+
+            Sleep((int)(sec * 1000));
+        }
+
     }
 }

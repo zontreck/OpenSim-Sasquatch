@@ -1639,5 +1639,117 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             return new LSL_Rotation(rot.X, rot.Y, rot.Z, rot.W);
         }
 
+        public void doObjectRez(string inventory, LSL_Vector pos, LSL_Vector vel, LSL_Rotation rot, int param, bool atRoot)
+        {
+            if (string.IsNullOrEmpty(inventory) || Double.IsNaN(rot.x) || Double.IsNaN(rot.y) || Double.IsNaN(rot.z) || Double.IsNaN(rot.s))
+                return;
+
+            if (VecDistSquare(llGetPos(), pos) > m_Script10mDistanceSquare)
+                return;
+
+            TaskInventoryItem item = m_host.Inventory.GetInventoryItem(inventory);
+
+            if (item == null)
+            {
+               Error("llRez(AtRoot/Object)", "Can't find object '" + inventory + "'");
+               return;
+            }
+
+            if (item.InvType != (int)InventoryType.Object)
+            {
+               Error("llRez(AtRoot/Object)", "Can't create requested object; object is missing from database");
+               return;
+            }
+
+            Util.FireAndForget(x =>
+            {
+                Quaternion wrot = rot;
+                wrot.Normalize();
+                List<SceneObjectGroup> new_groups = World.RezObject(m_host, item, pos, wrot, vel, param, atRoot);
+
+                // If either of these are null, then there was an unknown error.
+                if (new_groups == null)
+                    return;
+
+                bool notAttachment = !m_host.ParentGroup.IsAttachment;
+
+                foreach (SceneObjectGroup group in new_groups)
+                {
+                    // objects rezzed with this method are die_at_edge by default.
+                    group.RootPart.SetDieAtEdge(true);
+
+                    group.ResumeScripts();
+
+                    m_ScriptEngine.PostObjectEvent(m_host.LocalId, new EventParams(
+                            "object_rez", new Object[] {
+                            new LSL_String(
+                            group.RootPart.UUID.ToString()) },
+                            new DetectParams[0]));
+
+                    if (notAttachment)
+                    {
+                        float groupmass = group.GetMass();
+
+                        PhysicsActor pa = group.RootPart.PhysActor;
+
+                        //Recoil.
+                        if (pa != null && pa.IsPhysical && !((Vector3)vel).IsZero())
+                        {
+                            Vector3 recoil = -vel * groupmass * m_recoilScaleFactor;
+                            if (!recoil.IsZero())
+                            {
+                                llApplyImpulse(recoil, 0);
+                            }
+                        }
+                    }
+                 }
+            }, null, "LSL_Api.doObjectRez");
+
+            //ScriptSleep((int)((groupmass * velmag) / 10));
+            ScriptSleep(m_sleepMsOnRezAtRoot);
+        }
+        
+        
+        /// <summary>
+        /// Attach the object containing this script to the avatar that owns it.
+        /// </summary>
+        /// <param name='attachmentPoint'>
+        /// The attachment point (e.g. <see cref="OpenSim.Region.ScriptEngine.Shared.ScriptBase.ScriptBaseClass.ATTACH_CHEST">ATTACH_CHEST</see>)
+        /// </param>
+        /// <returns>true if the attach suceeded, false if it did not</returns>
+        public bool AttachToAvatar(int attachmentPoint)
+        {
+            SceneObjectGroup grp = m_host.ParentGroup;
+            ScenePresence presence = World.GetScenePresence(m_host.OwnerID);
+
+            IAttachmentsModule attachmentsModule = m_ScriptEngine.World.AttachmentsModule;
+
+            if (attachmentsModule != null)
+                return attachmentsModule.AttachObject(presence, grp, (uint)attachmentPoint, false, true, true);
+            else
+                return false;
+        }
+
+        /// <summary>
+        /// Detach the object containing this script from the avatar it is attached to.
+        /// </summary>
+        /// <remarks>
+        /// Nothing happens if the object is not attached.
+        /// </remarks>
+        public void DetachFromAvatar()
+        {
+            Util.FireAndForget(DetachWrapper, m_host, "LSL_Api.DetachFromAvatar");
+        }
+
+        private void DetachWrapper(object o)
+        {
+            if (World.AttachmentsModule != null)
+            {
+                SceneObjectPart host = (SceneObjectPart)o;
+                ScenePresence presence = World.GetScenePresence(host.OwnerID);
+                World.AttachmentsModule.DetachSingleAttachmentToInv(presence, host.ParentGroup);
+            }
+        }
+
     }
 }

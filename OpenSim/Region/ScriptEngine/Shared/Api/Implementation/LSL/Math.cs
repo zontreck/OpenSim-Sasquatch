@@ -502,6 +502,78 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.LSL
             return (float)Math.Round((ScriptTime / 1000.0), 3);
         }
 
+        public LSL_Integer llGiveMoney(LSL_Key destination, LSL_Integer amount)
+        {
+
+            if (m_item.PermsGranter.IsZero())
+                return 0;
+
+            if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_DEBIT) == 0)
+            {
+                Error("llGiveMoney", "No permissions to give money");
+                return 0;
+            }
+
+            if (!UUID.TryParse(destination, out UUID toID))
+            {
+                Error("llGiveMoney", "Bad key in llGiveMoney");
+                return 0;
+            }
+
+            IMoneyModule money = World.RequestModuleInterface<IMoneyModule>();
+            if (money == null)
+            {
+                NotImplemented("llGiveMoney");
+                return 0;
+            }
+
+            Action<string> act = dontcare =>
+            {
+                money.ObjectGiveMoney(m_host.ParentGroup.RootPart.UUID, m_host.ParentGroup.RootPart.OwnerID,
+                    toID, amount,UUID.Zero, out string reason);
+            };
+
+            m_AsyncCommands.DataserverPlugin.RegisterRequest(m_host.LocalId, m_item.ItemID, act);
+            return 0;
+        }
+        
+        
+        
+        public LSL_Float llGetMass()
+        {
+
+            if (m_host.ParentGroup.IsAttachment)
+            {
+                ScenePresence attachedAvatar = World.GetScenePresence(m_host.ParentGroup.AttachedAvatar);
+
+                if (attachedAvatar != null)
+                {
+                    return attachedAvatar.GetMass();
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+            else
+            {
+                // new SL always returns object mass
+//                if (m_host.IsRoot)
+//                {
+                return m_host.ParentGroup.GetMass();
+//                }
+//                else
+//                {
+//                    return m_host.GetMass();
+//                }
+            }
+        }
+
+        public LSL_Float llGetMassMKS()
+        {
+            return 100f * llGetMass();
+        }
+
         
     }
 }
