@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Nini">
@@ -13,9 +13,6 @@
     </Reference>
     <Reference Include="OpenMetaverseTypes">
       <HintPath>..\..\..\bin\OpenMetaverseTypes.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System.Drawing.Common">
       <Private>False</Private>
     </Reference>
     <Reference Include="System.Runtime.Remoting">
@@ -141,6 +138,8 @@
     <Compile Remove="Scenes\EventManager.cs" />
     <Compile Remove="Scenes\GodController.cs" />
     <Compile Remove="Scenes\KeyframeMotion.cs" />
+    <Compile Remove="Scenes\LinksetData.cs" />
+    <Compile Remove="Scenes\LinksetDataEntry.cs" />
     <Compile Remove="Scenes\Prioritizer.cs" />
     <Compile Remove="Scenes\PriorityQueue.cs" />
     <Compile Remove="Scenes\RegionStatsHandler.cs" />
@@ -181,6 +180,7 @@
   <ItemGroup>
     <PackageReference Include="log4net" Version="2.0.15" />
     <PackageReference Include="Mono.Addins" Version="1.4.1" />
+    <PackageReference Include="Mono.Addins.CecilReflector" Version="1.4.1" />
     <PackageReference Include="NUnit" Version="2.7.1" />
     <PackageReference Include="NUnitTestAdapter" Version="2.3.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.10.0" />

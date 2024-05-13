@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <AssemblyTitle>OpenSim.Data.MySQL</AssemblyTitle>
     <Company>http://opensimulator.org</Company>
     <Product>OpenSim.Data.MySQL</Product>
@@ -44,7 +44,7 @@
     <EmbeddedResource Include="Resources\os_groups_Store.migrations" />
     <EmbeddedResource Include="Resources\Presence.migrations" />
     <EmbeddedResource Include="Resources\RegionStore.migrations" />
-	<EmbeddedResource Include="Resources\UserAlias.migrations" />
+	  <EmbeddedResource Include="Resources\UserAlias.migrations" />
     <EmbeddedResource Include="Resources\UserAccount.migrations" />
     <EmbeddedResource Include="Resources\UserProfiles.migrations" />
     <EmbeddedResource Include="Resources\XAssetStore.migrations" />
@@ -52,6 +52,7 @@
   <ItemGroup>
     <PackageReference Include="log4net" Version="2.0.15" />
     <PackageReference Include="Mono.Addins" Version="1.4.1" />
+    <PackageReference Include="Mono.Addins.CecilReflector" Version="1.4.1" />
     <PackageReference Include="MySqlConnector" Version="2.2.6" />
   </ItemGroup>
   <ItemGroup>

@@ -110,8 +110,7 @@ namespace OpenSim.Data.SQLite
         {
             try
             {
-                if (Util.IsWindows())
-                    Util.LoadArchSpecificWindowsDll("sqlite3.dll");
+                DllmapConfigHelper.RegisterAssembly(typeof(SQLiteConnection).Assembly);
 
                 m_connectionString = connectionString;
 
@@ -538,15 +537,6 @@ namespace OpenSim.Data.SQLite
         /// <param name="regionUUID">the region UUID</param>
         public void StoreObject(SceneObjectGroup obj, UUID regionUUID)
         {
-            uint flags = obj.RootPart.GetEffectiveObjectFlags();
-
-            // Eligibility check
-            //
-            if ((flags & (uint)PrimFlags.Temporary) != 0)
-                return;
-            if ((flags & (uint)PrimFlags.TemporaryOnRez) != 0)
-                return;
-
             lock (ds)
             {
                 foreach (SceneObjectPart prim in obj.Parts)
@@ -667,8 +657,6 @@ namespace OpenSim.Data.SQLite
                             createdObjects.Add(group.UUID, group);
                             retvals.Add(group);
                             LoadItems(prim);
-
-
                         }
                     }
                     catch (Exception e)
@@ -1251,6 +1239,8 @@ namespace OpenSim.Data.SQLite
             createCol(prims, "pseudocrc", typeof(int));
             createCol(prims, "sopanims", typeof(byte[]));
 
+            createCol(prims, "linksetdata", typeof(string));
+
             // Add in contraints
             prims.PrimaryKey = new DataColumn[] { prims.Columns["UUID"] };
 
@@ -1299,7 +1289,7 @@ namespace OpenSim.Data.SQLite
             createCol(shapes, "Texture", typeof(Byte[]));
             createCol(shapes, "ExtraParams", typeof(Byte[]));
             createCol(shapes, "Media", typeof(String));
-
+            createCol(shapes, "MatOvrd", typeof(byte[]));
             shapes.PrimaryKey = new DataColumn[] { shapes.Columns["UUID"] };
 
             return shapes;
@@ -1797,7 +1787,7 @@ namespace OpenSim.Data.SQLite
             if(pseudocrc != 0)
                 prim.PseudoCRC = pseudocrc;
 
-            if (!(row["sopanims"] is DBNull))
+            if (row["sopanims"] is not DBNull)
             {
                 byte[] data = (byte[])row["sopanims"];
                 if (data.Length > 0)
@@ -1808,6 +1798,11 @@ namespace OpenSim.Data.SQLite
             else
             {
                 prim.Animations = null;
+            }
+
+            if (!(row["linksetdata"] is DBNull))
+            {
+                prim.DeserializeLinksetData((string)row["LinksetData"]);
             }
 
             return prim;
@@ -1889,8 +1884,12 @@ namespace OpenSim.Data.SQLite
             newData.Dwell = Convert.ToInt32(row["Dwell"]);
             newData.MediaType = (String)row["MediaType"];
             newData.MediaDescription = (String)row["MediaDescription"];
-            newData.MediaWidth = Convert.ToInt32((((string)row["MediaSize"]).Split(','))[0]);
-            newData.MediaHeight = Convert.ToInt32((((string)row["MediaSize"]).Split(','))[1]);
+            string[] sizes = ((string)row["MediaSize"]).Split(',');
+            if (sizes.Length > 1)
+            {
+                newData.MediaWidth = Convert.ToInt32(sizes[0]);
+                newData.MediaHeight = Convert.ToInt32(sizes[1]);
+            }
             newData.MediaLoop = Convert.ToBoolean(row["MediaLoop"]);
             newData.ObscureMedia = Convert.ToBoolean(row["ObscureMedia"]);
             newData.ObscureMusic = Convert.ToBoolean(row["ObscureMusic"]);
@@ -1915,9 +1914,8 @@ namespace OpenSim.Data.SQLite
                 newData.UserLookAt = Vector3.Zero;
             }
             newData.ParcelAccessList = new List<LandAccessEntry>();
-            UUID authBuyerID = UUID.Zero;
-
-            UUID.TryParse((string)row["AuthbuyerID"], out authBuyerID);
+            UUID.TryParse((string)row["AuthbuyerID"], out UUID authBuyerID);
+            newData.AuthBuyerID = authBuyerID;
 
             newData.OtherCleanTime = Convert.ToInt32(row["OtherCleanTime"]);
 
@@ -2003,7 +2001,7 @@ namespace OpenSim.Data.SQLite
             newSettings.ParcelImageID = new UUID((String)row["parcel_tile_ID"]);
             newSettings.GodBlockSearch = Convert.ToBoolean(row["block_search"]);
             newSettings.Casino = Convert.ToBoolean(row["casino"]);
-            if (!(row["cacheID"] is System.DBNull))
+            if (row["cacheID"] is not System.DBNull)
                 newSettings.CacheID = new UUID((String)row["cacheID"]);
 
             return newSettings;
@@ -2181,7 +2179,7 @@ namespace OpenSim.Data.SQLite
             if (prim.KeyframeMotion != null)
                 row["KeyframeMotion"] = prim.KeyframeMotion.Serialize();
             else
-                row["KeyframeMotion"] = Array.Empty<byte>(); ;
+                row["KeyframeMotion"] = Array.Empty<byte>();
 
             row["PassTouches"] = prim.PassTouches;
             row["PassCollisions"] = prim.PassCollisions;
@@ -2199,6 +2197,11 @@ namespace OpenSim.Data.SQLite
 
             row["pseudocrc"] = prim.PseudoCRC;
             row["sopanims"] = prim.SerializeAnimations();
+
+            if (prim.IsRoot && prim.LinksetData is not null)
+                row["linksetdata"] = prim.SerializeLinksetData();
+            else
+                row["linksetdata"] = null;
         }
 
         /// <summary>
@@ -2405,8 +2408,13 @@ namespace OpenSim.Data.SQLite
 
             s.ExtraParams = (byte[])row["ExtraParams"];
 
-            if (!(row["Media"] is System.DBNull))
+            if (row["Media"] is not System.DBNull)
                 s.Media = PrimitiveBaseShape.MediaList.FromXml((string)row["Media"]);
+
+            if (row["MatOvrd"] is not System.DBNull)
+                s.RenderMaterialsOvrFromRawBin((byte[])row["MatOvrd"]);
+            else
+                s.RenderMaterialsOvrFromRawBin(null);
 
             return s;
         }
@@ -2453,8 +2461,10 @@ namespace OpenSim.Data.SQLite
             row["Texture"] = s.TextureEntry;
             row["ExtraParams"] = s.ExtraParams;
 
-            if (s.Media != null)
+            if (s.Media is not null)
                 row["Media"] = s.Media.ToXml();
+
+            row["MatOvrd"] = s.RenderMaterialsOvrToRawBin();
         }
 
         /// <summary>
@@ -2818,6 +2828,11 @@ namespace OpenSim.Data.SQLite
             da.InsertCommand.Connection = conn;
             da.UpdateCommand = createUpdateCommand("regionenvironment", "region_id=:region_id", ds.Tables["regionenvironment"]);
             da.UpdateCommand.Connection = conn;
+
+            SQLiteCommand delete = new SQLiteCommand("delete from regionenvironment where region_id= :region_id");
+            delete.Parameters.Add(createSqliteParameter("region_id", typeof(String)));
+            da.DeleteCommand = delete;
+            da.DeleteCommand.Connection = conn;
         }
 
         private void setupRegionSpawnPointsCommands(SQLiteDataAdapter da, SQLiteConnection conn)
@@ -2875,10 +2890,6 @@ namespace OpenSim.Data.SQLite
             else if (type == typeof(Byte))
             {
                 return DbType.Byte;
-            }
-            else if (type == typeof(Double))
-            {
-                return DbType.Double;
             }
             else if (type == typeof(Byte[]))
             {
