@@ -4635,6 +4635,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             int count=0;
             var parcel = World.LandChannel.GetLandObject((m_host.GetWorldPosition()));
             ISceneObject[] parcelObjects = parcel.GetSceneObjectGroups();
+            List<SceneObjectGroup> sogs = new();
             
             for(int i=0;i<objects.Length;i++)
             {
@@ -4646,13 +4647,13 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                     string id = (string)obj;
                     var objParcel = World.LandChannel.GetLandObject(UUID.Parse(id));
                     
-                    if (IsEstateOwnerOrManager(m_host.OwnerID) || parcel.LandData.OwnerID.Equals(m_host.OwnerID))
+                    if (IsEstateOwnerOrManager(m_host.OwnerID) || parcel.LandData.OwnerID.Equals(m_host.OwnerID) && objParcel != null)
                     {
                         var sog = World.GetSceneObjectGroup(UUID.Parse(id));
                         if (IsEstateOwnerOrManager(m_host.OwnerID))
                         {
                             count++;
-                            World.AddReturn(sog.GroupID, sog.Name, sog.AbsolutePosition, "Estate Object Owner Return");
+                            sogs.Add(sog);
                         }
                         else
                         {
@@ -4660,7 +4661,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                             if (parcelObjects.Contains(sog) && objParcel.LocalID == parcel.LocalID)
                             {
                                 count++;
-                                World.AddReturn(sog.GroupID, sog.Name, sog.AbsolutePosition, "Object Owner Return");
+                                sogs.Add(sog);
                             }
                         }
                     }
@@ -4677,6 +4678,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                 X++;
             }
 
+            World.returnObjects(sogs.ToArray(), null);
+
             return new LSL_Integer(count);
         }
 
@@ -4689,7 +4692,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             }
             // TODO: Add throttle via a config option
             //Throttled at max parcel land impact capacity region-wide per hour. -SL Wiki
-            
+
+            List<SceneObjectGroup> lSogs = new();
             var parcel = World.LandChannel.GetLandObject(m_host.GetWorldPosition());
             if (parcel.LandData.OwnerID.Equals(m_host.OwnerID) || IsEstateOwnerOrManager(m_host.OwnerID))
             {
@@ -4704,7 +4708,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                             if (sog.OwnerID.ToString() == owner)
                             {
                                 count++;
-                                World.AddReturn(sog.GroupID, sog.Name, sog.AbsolutePosition, "Object Owner Return");
+                                lSogs.Add(sog);
 
                             }
                         }
@@ -4720,7 +4724,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                                 if (sogx.OwnerID.ToString() == owner)
                                 {
                                     count++;
-                                    World.AddReturn(sogx.GroupID, sogx.Name, sogx.AbsolutePosition, "Object Owner Return");
+                                    lSogs.Add(sogx);
                                 }
                             }
                         }
@@ -4739,13 +4743,15 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                                         if (sog.OwnerID.ToString() == owner)
                                         {
                                             count++;
-                                            World.AddReturn(sog.GroupID, sog.Name, sog.AbsolutePosition, "Object Owner Return");
+                                            lSogs.Add(sog);
                                         }
                                     }
                                 }
                             }
                         }
                     }
+
+                    World.returnObjects(lSogs.ToArray(), null);
 
                     return count;
                 }
