@@ -4631,13 +4631,14 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             // TODO: Make a config option to customize the throttle
             // The throttle likely should be a multiplier on capacity
 
-            int X;
-            int count;
+            int X=0;
+            int count=0;
             var parcel = World.LandChannel.GetLandObject((m_host.GetWorldPosition()));
-            SceneObjectGroup[] parcelObjects = parcel.GetSceneObjectGroups();
+            ISceneObject[] parcelObjects = parcel.GetSceneObjectGroups();
             
-            foreach (object obj in objects)
+            for(int i=0;i<objects.Length;i++)
             {
+                LSL_String obj = objects.GetStringItem(i);
                 try
                 {
 
@@ -4679,7 +4680,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             return new LSL_Integer(count);
         }
 
-        public LSL_Integer llReturnObjectsByOwner(string owner, LSL_Integer scope)
+        public LSL_Integer llReturnObjectsByOwner(string owner, int scope)
         {
             if ((m_item.PermsMask & ScriptBaseClass.PERMISSION_RETURN_OBJECTS) == 0)
             {
@@ -4716,7 +4717,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                             {
                                 
                                 // If owner of SOG is [owner], return it.
-                                if (sogx.OwnerID.ToString()() == owner)
+                                if (sogx.OwnerID.ToString() == owner)
                                 {
                                     count++;
                                     World.AddReturn(sogx.GroupID, sogx.Name, sogx.AbsolutePosition, "Object Owner Return");
