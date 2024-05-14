@@ -51,6 +51,7 @@ using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -4625,19 +4626,46 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                 llShout(ScriptBaseClass.DEBUG_CHANNEL, "Permission not granted: PERMISSION_RETURN_OBJECTS");
                 return ScriptBaseClass.ERR_RUNTIME_PERMISSIONS;
             }
+            
+            // SL Throttle : Max parcel land impact capacity region wide per hour
+            // TODO: Make a config option to customize the throttle
+            // The throttle likely should be a multiplier on capacity
 
             int X;
             int count;
+            var parcel = World.LandChannel.GetLandObject((m_host.GetWorldPosition()));
+            SceneObjectGroup[] parcelObjects = parcel.GetSceneObjectGroups();
+            
             foreach (object obj in objects)
             {
                 try
                 {
 
+                    // get the ID from the list
                     string id = (string)obj;
-                    if ()
+                    var objParcel = World.LandChannel.GetLandObject(UUID.Parse(id));
+                    
+                    if (IsEstateOwnerOrManager(m_host.OwnerID) || parcel.LandData.OwnerID.Equals(m_host.OwnerID))
                     {
-                        var sog = World.GetSceneObjectGroup(str);
-                        
+                        var sog = World.GetSceneObjectGroup(UUID.Parse(id));
+                        if (IsEstateOwnerOrManager(m_host.OwnerID))
+                        {
+                            count++;
+                            World.AddReturn(sog.GroupID, sog.Name, sog.AbsolutePosition, "Estate Object Owner Return");
+                        }
+                        else
+                        {
+                            // If not estate manager or owner, return can only happen for the parcel the object is on
+                            if (parcelObjects.Contains(sog) && objParcel.LocalID == parcel.LocalID)
+                            {
+                                count++;
+                                World.AddReturn(sog.GroupID, sog.Name, sog.AbsolutePosition, "Object Owner Return");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        return ScriptBaseClass.ERR_PARCEL_PERMISSIONS;
                     }
                 }
                 catch (Exception e)
@@ -4658,13 +4686,67 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                 llShout(ScriptBaseClass.DEBUG_CHANNEL, "Permission not granted: PERMISSION_RETURN_OBJECTS");
                 return ScriptBaseClass.ERR_RUNTIME_PERMISSIONS;
             }
+            // TODO: Add throttle via a config option
+            //Throttled at max parcel land impact capacity region-wide per hour. -SL Wiki
             
             var parcel = World.LandChannel.GetLandObject(m_host.GetWorldPosition());
             if (parcel.LandData.OwnerID.Equals(m_host.OwnerID) || IsEstateOwnerOrManager(m_host.OwnerID))
             {
-                if (IsEstateOwnerOrManager(m_host.OwnerID) && scope == ScriptBaseClass.OBJECT_RETURN_REGION)
+                if (IsEstateOwnerOrManager(m_host.OwnerID))
                 {
-                    
+                    int count = 0;
+                    if (scope == ScriptBaseClass.OBJECT_RETURN_REGION)
+                    {
+
+                        foreach (SceneObjectGroup sog in World.GetSceneObjectGroups())
+                        {
+                            if (sog.OwnerID.ToString() == owner)
+                            {
+                                count++;
+                                World.AddReturn(sog.GroupID, sog.Name, sog.AbsolutePosition, "Object Owner Return");
+
+                            }
+                        }
+                    } else if (scope == ScriptBaseClass.OBJECT_RETURN_PARCEL)
+                    {
+                        var sogs = parcel.GetSceneObjectGroups();
+                        foreach (var sog in sogs)
+                        {
+                            if (sog is SceneObjectGroup sogx)
+                            {
+                                
+                                // If owner of SOG is [owner], return it.
+                                if (sogx.OwnerID.ToString()() == owner)
+                                {
+                                    count++;
+                                    World.AddReturn(sogx.GroupID, sogx.Name, sogx.AbsolutePosition, "Object Owner Return");
+                                }
+                            }
+                        }
+                    } else if (scope == ScriptBaseClass.OBJECT_RETURN_PARCEL_OWNER)
+                    {
+                        var parcels = World.LandChannel.AllParcels();
+                        foreach (var iParcel in parcels)
+                        {
+                            if (iParcel.OwnerID == m_host.OwnerID || IsEstateOwnerOrManager(m_host.OwnerID))
+                            {
+                                var sogs = iParcel.GetSceneObjectGroups();
+                                foreach (var isog in sogs)
+                                {
+                                    if (isog is SceneObjectGroup sog)
+                                    {
+                                        if (sog.OwnerID.ToString() == owner)
+                                        {
+                                            count++;
+                                            World.AddReturn(sog.GroupID, sog.Name, sog.AbsolutePosition, "Object Owner Return");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    return count;
                 }
                 else
                 {
