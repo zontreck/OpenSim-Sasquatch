@@ -4722,7 +4722,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
 
                         foreach (SceneObjectGroup sog in World.GetSceneObjectGroups())
                         {
-                            if (sog.OwnerID.ToString() == owner)
+                            if (sog.OwnerID.ToString() == owner && !IsEstateOwnerOrManager(sog.OwnerID))
                             {
                                 count++;
                                 lSogs.Add(sog);
@@ -4738,7 +4738,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                             {
                                 
                                 // If owner of SOG is [owner], return it.
-                                if (sogx.OwnerID.ToString() == owner)
+                                if (sogx.OwnerID.ToString() == owner && !IsEstateOwnerOrManager(sog.OwnerID))
                                 {
                                     count++;
                                     lSogs.Add(sogx);
@@ -4757,7 +4757,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                                 {
                                     if (isog is SceneObjectGroup sog)
                                     {
-                                        if (sog.OwnerID.ToString() == owner)
+                                        if (sog.OwnerID.ToString() == owner && !IsEstateOwnerOrManager(sog.OwnerID))
                                         {
                                             count++;
                                             lSogs.Add(sog);
