@@ -4643,7 +4643,9 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                     // get the ID from the list
                     string id = objects.GetStringItem(i);
                     //m_log.Info($"Attempt to return object {id}");
-                    var objParcel = World.LandChannel.GetLandObject(UUID.Parse(id));
+                    var sop = World.GetSceneObjectPart(UUID.Parse(id));
+                    var objParcel = World.LandChannel.GetLandObject(sop.GetWorldPosition());
+
                     
                     //if(objParcel == null) m_log.Info("Object Parcel is null. Object no longer exists");
                     if (objParcel == null) continue; // Object no longer exists, skip
@@ -4651,6 +4653,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                     if (IsEstateOwnerOrManager(m_host.OwnerID) || parcel.LandData.OwnerID.Equals(m_host.OwnerID))
                     {
                         var sog = World.GetSceneObjectGroup(UUID.Parse(id));
+                        //llSay(0, "Has ability to return");
                         if (IsEstateOwnerOrManager(m_host.OwnerID))
                         {
                             count++;
@@ -4658,16 +4661,28 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                         }
                         else
                         {
+                            //llSay(0, "Not estate owner or manager");
                             // If not estate manager or owner, return can only happen for the parcel the object is on
-                            bool canReturn = IsEstateOwnerOrManager(m_host.OwnerID) &&
-                                             IsEstateOwnerOrManager(sog.OwnerID);
+                            bool canEstateReturn = IsEstateOwnerOrManager(sog.OwnerID);
                             
-                            if (objParcel.LocalID == parcel.LocalID && canReturn)
+                            //llSay(0, $"CanReturn {canEstateReturn}");
+                            
+                            if (objParcel.LocalID == parcel.LocalID && !canEstateReturn)
                             {
+                                //llSay(0, "Add to return queue");
                                 count++;
                                 sogs.Add(sog);
                             }
                         }
+                    }
+                    else
+                    {
+                        /*
+                        llSay(0, $"Object Owner ID : secondlife://app/agent/{m_host.OwnerID}/about");
+                        llSay(0, $"Land Owner ID: secondlife://app/agent/{parcel.LandData.OwnerID}/about");
+                        
+                        llSay(0, "ID is unprivileged. Refusing to proceed");
+                        /**/
                     }
                 }
                 catch (Exception e)
