@@ -4631,23 +4631,24 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             // TODO: Make a config option to customize the throttle
             // The throttle likely should be a multiplier on capacity
 
-            int X=0;
             int count=0;
-            var parcel = World.LandChannel.GetLandObject((m_host.GetWorldPosition()));
-            ISceneObject[] parcelObjects = parcel.GetSceneObjectGroups();
-            List<SceneObjectGroup> sogs = new();
+            var parcel = World.LandChannel.GetLandObject(m_host.GetWorldPosition());
+            List<SceneObjectGroup> sogs = new List<SceneObjectGroup>();
             
             for(int i=0;i<objects.Length;i++)
             {
-                LSL_String obj = objects.GetStringItem(i);
                 try
                 {
 
                     // get the ID from the list
-                    string id = (string)obj;
+                    string id = objects.GetStringItem(i);
+                    //m_log.Info($"Attempt to return object {id}");
                     var objParcel = World.LandChannel.GetLandObject(UUID.Parse(id));
                     
-                    if (IsEstateOwnerOrManager(m_host.OwnerID) || parcel.LandData.OwnerID.Equals(m_host.OwnerID) && objParcel != null)
+                    //if(objParcel == null) m_log.Info("Object Parcel is null. Object no longer exists");
+                    if (objParcel == null) continue; // Object no longer exists, skip
+                    
+                    if (IsEstateOwnerOrManager(m_host.OwnerID) || parcel.LandData.OwnerID.Equals(m_host.OwnerID))
                     {
                         var sog = World.GetSceneObjectGroup(UUID.Parse(id));
                         if (IsEstateOwnerOrManager(m_host.OwnerID))
@@ -4658,27 +4659,28 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                         else
                         {
                             // If not estate manager or owner, return can only happen for the parcel the object is on
-                            if (parcelObjects.Contains(sog) && objParcel.LocalID == parcel.LocalID)
+                            bool canReturn = IsEstateOwnerOrManager(m_host.OwnerID) &&
+                                             IsEstateOwnerOrManager(sog.OwnerID);
+                            
+                            if (objParcel.LocalID == parcel.LocalID && canReturn)
                             {
                                 count++;
                                 sogs.Add(sog);
                             }
                         }
                     }
-                    else
-                    {
-                        return ScriptBaseClass.ERR_PARCEL_PERMISSIONS;
-                    }
                 }
                 catch (Exception e)
                 {
-                    llShout(ScriptBaseClass.DEBUG_CHANNEL, $"Entry #{X} was not a valid key");
+                    llShout(ScriptBaseClass.DEBUG_CHANNEL, $"Error while trying to return object {i}");
                 }
-
-                X++;
             }
+            
+            if(sogs==null) m_log.Info($"SOGS is null");
+            m_log.Info($"SOG List Count {sogs.Count}");
 
-            World.returnObjects(sogs.ToArray(), null);
+            if(sogs.Count>0)
+                World.returnObjects(sogs.ToArray(), null);
 
             return new LSL_Integer(count);
         }
@@ -4751,7 +4753,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                         }
                     }
 
-                    World.returnObjects(lSogs.ToArray(), null);
+                    if(lSogs.Count>0)
+                        World.returnObjects(lSogs.ToArray(), null);
 
                     return count;
                 }
